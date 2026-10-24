@@ -50,8 +50,15 @@ fi
 status=0
 ./orchard "\$@" &
 child=\$!
-trap 'kill -TERM "\$child" 2>/dev/null' TERM INT
-wait "\$child" || status=\$?
+trap 'interrupted=1; kill -TERM "\$child" 2>/dev/null' TERM INT
+# A trapped signal interrupts wait before the child has finished cleanup.
+# Wait again to collect its actual exit status before the native launcher returns.
+while :; do
+  interrupted=0
+  status=0
+  wait "\$child" || status=\$?
+  [ "\$interrupted" -eq 1 ] || break
+done
 if [ -n "\$dialog" ]; then kill \$watcher \$dialog 2> /dev/null; fi
 exit \$status
 SCRIPT
