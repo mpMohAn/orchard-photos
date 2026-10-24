@@ -345,6 +345,21 @@ class LaunchTests(unittest.TestCase):
         self.assertEqual(close.call_args.args[0].socket.fileno(), -1, 'The port is released')
         self.library.close.assert_called_once_with()
 
+    def test_window_failure_still_releases_the_port_and_library(self):
+        with patch('server.api.unavailable', return_value=None), patch('server.api.Window') as window, \
+                patch('server.api.Server.server_close', autospec=True, wraps=Server.server_close) as close:
+            window.return_value.run.side_effect = RuntimeError('window failed')
+            with self.assertRaisesRegex(RuntimeError, 'window failed'):
+                self.launch('--window')
+        self.assertEqual(close.call_args.args[0].socket.fileno(), -1)
+        self.library.close.assert_called_once_with()
+
+    def test_bundle_toolkit_failure_does_not_leave_a_browser_server(self):
+        with patch.dict('os.environ', {'ORCHARD_APP': '1'}), patch('server.api.unavailable', return_value='missing toolkit'), \
+                self.assertRaisesRegex(SystemExit, 'native window'):
+            self.launch('--window')
+        self.open_browser.assert_not_called()
+
     def test_without_a_window_toolkit_it_opens_the_browser(self):
         with patch('server.api.unavailable', return_value='there is no display'), patch('server.api.Window') as window, \
                 patch('server.api.ThreadingHTTPServer.serve_forever', side_effect=KeyboardInterrupt), \
@@ -364,6 +379,14 @@ class LaunchTests(unittest.TestCase):
                 hand_over.assert_called_once()
                 window.assert_not_called()
                 self.assertEqual(self.open_browser.called, opens_browser)
+
+    def test_a_simultaneous_launch_waits_for_the_first_server_to_answer(self):
+        with patch('server.api.running', side_effect=[False, False, True]), \
+                patch('server.api.Server', side_effect=OSError(errno.EADDRINUSE, 'in use')), \
+                patch('server.api.time.sleep') as sleep, patch('server.api.hand_over', return_value=None), \
+                patch('server.api.bring_forward', return_value=True):
+            self.launch('--window')
+        sleep.assert_called_once_with(0.2)
 
     def test_a_port_in_use_or_reserved_is_explained(self):
         with Server(('127.0.0.1', 0), Handler) as taken, self.assertRaises(OSError):

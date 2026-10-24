@@ -185,7 +185,7 @@ class Encoder:
                     text = onnxruntime.InferenceSession(str(text_file), providers=providers)
                     tokenizer = Tokenizer.from_file(str(tokenizer_file))
                 except Exception as error:
-                    raise RuntimeError("The search model could not load. Retry, or delete the models folder to download it again.") from error
+                    raise RuntimeError("The search model could not load. Check the Python and ONNX Runtime versions in Copy diagnostics. On Intel macOS use the supported Python 3.13 and ONNX Runtime 1.23.2 environment; report the failure before changing models or clearing caches.") from error
                 tokenizer.enable_truncation(MAX_TOKENS)
                 tokenizer.enable_padding(pad_id=tokenizer.token_to_id(PAD), pad_token=PAD, length=MAX_TOKENS)
                 self._vision, self._text, self._tokenizer = vision, text, tokenizer

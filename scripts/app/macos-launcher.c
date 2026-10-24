@@ -9,6 +9,8 @@
 #include <limits.h>
 #include <mach-o/dyld.h>
 #include <spawn.h>
+#include <signal.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +22,10 @@
 #define TAIL_BYTES 4096
 
 extern char **environ;
+static volatile sig_atomic_t owned_child = 0;
+static void forward_signal(int number) {
+    if (owned_child > 0) kill(owned_child, number);
+}
 
 // The last lines of the log, for the alert.
 static void tail(const char *log, char *text, size_t size) {
@@ -55,7 +61,7 @@ int main(int argc, char **argv) {
     char *fixed[] = {command, "-I", "-B", "-m", "server.api", "--window"};
 #endif
     snprintf(logs, sizeof logs, "%s/Library/Logs", home);
-    mkdir(logs, 0755);
+    mkdir(logs, 0700);
     snprintf(log, sizeof log, "%s/Orchard.log", logs);
 
     int count = sizeof fixed / sizeof *fixed;
@@ -64,13 +70,22 @@ int main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) arguments[count++] = argv[i];
     arguments[count] = NULL;
 
+    setenv("ORCHARD_APP", "1", 1);
+    chmod(log, 0600);
     posix_spawn_file_actions_t output;
     posix_spawn_file_actions_init(&output);
-    posix_spawn_file_actions_addopen(&output, STDOUT_FILENO, log, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_addopen(&output, STDOUT_FILENO, log, O_WRONLY | O_CREAT | O_APPEND, 0600);
     posix_spawn_file_actions_adddup2(&output, STDOUT_FILENO, STDERR_FILENO);
     pid_t child;
     int status = 1;
-    if (posix_spawn(&child, arguments[0], &output, NULL, arguments, environ) == 0) waitpid(child, &status, 0);
+    signal(SIGTERM, forward_signal);
+    signal(SIGINT, forward_signal);
+    if (posix_spawn(&child, arguments[0], &output, NULL, arguments, environ) == 0) {
+        owned_child = child;
+        while (waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+        owned_child = 0;
+    }
+    posix_spawn_file_actions_destroy(&output);
     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) return 0;
 
     char end[TAIL_BYTES], message[PATH_MAX + TAIL_BYTES + 256];
@@ -80,7 +95,9 @@ int main(int argc, char **argv) {
         ? "macOS kept Orchard out of a folder. Allow Orchard in System Settings › Privacy & Security › Files & Folders, "
           "or Full Disk Access, then open it again.\n\n"
         : "";
-    snprintf(message, sizeof message, "%sThe end of its log, %s:\n\n%s", blocked, log, end);
+    snprintf(message, sizeof message, "%sOrchard could not start. Check that Python 3.13 and the dependencies are installed, "
+             "and that port 4400 is available. Technical details are in %s. "
+             "The log may contain private paths; review it before sharing. Use Copy diagnostics in Orchard for a private report.", blocked, log);
     char *alert[] = {"osascript", "-e", "on run argv", "-e", "display alert \"Orchard stopped\" message (item 1 of argv) as critical",
                      "-e", "end run", message, NULL};
     // Not waited for, so whatever started this sees it stop, even before the alert is closed.

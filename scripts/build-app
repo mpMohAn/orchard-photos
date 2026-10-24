@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build Orchard as an app that brings its own Python: Orchard.app in a DMG on macOS, or Orchard.exe in a zip on Windows.
 
-Run it with Python 3.13 on the system it builds for, Apple Silicon or Windows x64, since pip picks the packages for the
+Run it with Python 3.13 on the system it builds for, Intel/Apple Silicon macOS or Windows x64, since pip picks the packages for the
 Python running it. The app is written to build/, and needs no Python or terminal to run."""
 import argparse
 import hashlib
@@ -35,8 +35,12 @@ RUNTIMES = {
     'win32': ('https://www.python.org/ftp/python/3.13.16/python-3.13.16-embed-amd64.zip',
               '97dae5274cc54867065e8d5a3226e48c35017ed332a0fdb0e27d5b5821961297'),
 }
-# ONNX Runtime has macOS wheels only for Apple Silicon.
-MACHINES = {'darwin': 'arm64', 'win32': 'AMD64'}
+INTEL_RUNTIME = (
+    'https://github.com/astral-sh/python-build-standalone/releases/download/20261013/'
+    'cpython-3.13.16%2B20261013-x86_64-apple-darwin-install_only_stripped.tar.gz',
+    'f507ae04eb7747cd97cb484e8c5d83936cbfc52d9b08a1f35c00b47c707b1ae1',
+)
+MACHINES = {'darwin': ('arm64', 'x86_64'), 'win32': ('AMD64',)}
 ARTIFACTS = {'darwin': f'{APP["name"]}-mac-arm64.dmg', 'win32': f'{APP["name"]}-windows-x64.zip'}
 IDENTIFIER = 'io.github.chaseleantj.orchard'
 # Parts of python-build-standalone the app never uses: Tk, the headers, pip, and the shared library, since its python
@@ -113,7 +117,7 @@ def build_mac(build: Path) -> Path:
     contents = app / 'Contents'
     resources = contents / 'Resources'
     runtime = resources / 'python'
-    with tarfile.open(download(*RUNTIMES['darwin'], build / 'downloads')) as archive:
+    with tarfile.open(download(*(INTEL_RUNTIME if platform.machine() == 'x86_64' else RUNTIMES['darwin']), build / 'downloads')) as archive:
         archive.extractall(resources, filter='tar')
     stdlib = runtime / 'lib' / MAC_PYTHON
     remove(runtime, MAC_UNUSED)
@@ -139,7 +143,7 @@ def build_mac(build: Path) -> Path:
         'CFBundleName': APP['name'], 'CFBundleDisplayName': APP['name'], 'CFBundleIdentifier': IDENTIFIER,
         'CFBundleExecutable': APP['name'], 'CFBundleIconFile': f'{APP["name"]}.icns', 'CFBundlePackageType': 'APPL',
         'CFBundleShortVersionString': APP['version'], 'CFBundleVersion': APP['version'],
-        'LSMinimumSystemVersion': oldest, 'LSArchitecturePriority': ['arm64'],
+        'LSMinimumSystemVersion': oldest, 'LSArchitecturePriority': [platform.machine()],
         'NSHighResolutionCapable': True,
         # Shown when Orchard first asks to read the Photos library. Without it, macOS refuses without asking.
         # Shown the first time Show in Photos asks Photos to open a photo.
@@ -156,7 +160,7 @@ def build_mac(build: Path) -> Path:
     stage.mkdir()
     shutil.move(app, stage)
     (stage / 'Applications').symlink_to('/Applications')
-    dmg = build / ARTIFACTS['darwin']
+    dmg = build / ARTIFACTS['darwin'].replace('arm64', platform.machine())
     # LZMA on HFS+ makes the smallest image, a third smaller than on APFS.
     subprocess.run(['hdiutil', 'create', '-quiet', '-volname', APP['name'], '-srcfolder', str(stage), '-fs', 'HFS+', '-format', 'ULMO', str(dmg)], check=True)
     return dmg
@@ -186,13 +190,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, default=ROOT / 'build', help='where to build; the downloads are kept there for next time')
     args = parser.parse_args()
-    if sys.platform not in RUNTIMES or platform.machine() != MACHINES[sys.platform]:
-        sys.exit(f'scripts/build-app builds on Apple Silicon Macs and Windows x64, not {sys.platform} {platform.machine()}.')
+    if sys.platform not in RUNTIMES or platform.machine() not in MACHINES[sys.platform]:
+        sys.exit(f'scripts/build-app builds on Intel/Apple Silicon Macs and Windows x64, not {sys.platform} {platform.machine()}.')
     if sys.version_info[:2] != PYTHON:
         sys.exit('scripts/build-app needs Python {}.{}, the version inside the app, to install its packages.'.format(*PYTHON))
     build = args.out.resolve()
     # Only what an earlier build made, in case --out names a folder with other files in it.
-    remove(build, ['dmg', APP['name'], f'{APP["name"]}.app', *ARTIFACTS.values()])
+    remove(build, ['dmg', APP['name'], f'{APP["name"]}.app', *ARTIFACTS.values(), ARTIFACTS['darwin'].replace('arm64', 'x86_64')])
     artifact = build_mac(build) if sys.platform == 'darwin' else build_windows(build)
     print(f'Built {artifact}, {artifact.stat().st_size / 1e6:.0f} MB')
 

@@ -20,6 +20,10 @@ jobs:
             artifact: Orchard-mac-arm64.dmg
             log: ~/Library/Logs/Orchard.log
             python: Orchard.app/Contents/MacOS/python
+          - os: macos-15-intel
+            artifact: Orchard-mac-x86_64.dmg
+            log: ~/Library/Logs/Orchard.log
+            python: Orchard.app/Contents/MacOS/python
           - os: windows-latest
             artifact: Orchard-windows-x64.zip
             log: $LOCALAPPDATA/Temp/Orchard.log
@@ -65,6 +69,9 @@ jobs:
           key: release-model-${{ runner.os }}-${{ hashFiles('server/semantic.py') }}
       - name: Smoke test
         run: python scripts/smoke-test --launcher "$LAUNCHER" --visual --data-dir ~/orchard-data
+      - name: Packaged server lifecycle
+        if: runner.os == 'macOS'
+        run: ORCHARD_TEST_LAUNCHER="$LAUNCHER" "$RUNNER_TEMP/${{ matrix.python }}" -I -m unittest discover -s tests -p test_lifecycle.py
       - name: Show the app's log
         if: failure()
         run: cat ${{ matrix.log }}
@@ -92,7 +99,7 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" artifacts/* --repo "$GITHUB_REPOSITORY" --draft --title "Orchard $GITHUB_REF_NAME" \
             --generate-notes --notes-file - <<'NOTES'
-          **Mac** (Apple Silicon): open `Orchard-mac-arm64.dmg` and drag Orchard to Applications. Orchard isn't signed by Apple yet, so the first time, macOS says it can't verify it. Click **Done**, open **System Settings › Privacy & Security**, click **Open Anyway** next to the message about Orchard, then **Open Anyway** again, and enter your password. Or run `xattr -dr com.apple.quarantine /Applications/Orchard.app` in Terminal first.
+          **Mac**: open `Orchard-mac-arm64.dmg` (Apple Silicon) or `Orchard-mac-x86_64.dmg` (Intel) and drag Orchard to Applications. Orchard isn't signed by Apple yet, so the first time, macOS says it can't verify it. Click **Done**, open **System Settings › Privacy & Security**, click **Open Anyway** next to the message about Orchard, then **Open Anyway** again, and enter your password. Or run `xattr -dr com.apple.quarantine /Applications/Orchard.app` in Terminal first.
 
           **Windows** (x64): extract `Orchard-windows-x64.zip`, then open `Orchard.exe` in the `Orchard` folder. Windows may say it protected your PC. Click **More info**, then **Run anyway**.
           NOTES

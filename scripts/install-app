@@ -11,7 +11,8 @@ app=${${1:-~/Applications}:A}/Orchard.app
 # like one on the Desktop, and remembers the answer. A script there would be refused without asking. It runs
 # Contents/Resources/start, which runs ./orchard. server/window.py then reruns Python through Contents/MacOS/python, a
 # link to Python's own app binary, so macOS shows the window as Orchard's, not Python's.
-rm -rf $app
+# Never overwrite a working installation. Use a separate folder for a review build.
+[[ ! -e $app ]] || { print -u2 "Already exists: $app. Choose an empty folder: scripts/install-app /path/to/review-folder"; exit 1; }
 mkdir -p $app/Contents/MacOS $app/Contents/Resources
 clang -O2 -DSTART_SCRIPT -o $app/Contents/MacOS/Orchard $root/scripts/app/macos-launcher.c
 cp $root/assets/orchard.icns $app/Contents/Resources/Orchard.icns
@@ -47,7 +48,10 @@ if ! installed; then
   watcher=\$!
 fi
 status=0
-./orchard "\$@" || status=\$?
+./orchard "\$@" &
+child=\$!
+trap 'kill -TERM "\$child" 2>/dev/null' TERM INT
+wait "\$child" || status=\$?
 if [ -n "\$dialog" ]; then kill \$watcher \$dialog 2> /dev/null; fi
 exit \$status
 SCRIPT

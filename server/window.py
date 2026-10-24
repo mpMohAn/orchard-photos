@@ -128,8 +128,8 @@ class Window:
     def run(self):
         """Show the window, and return once it is closed."""
         icon = ICONS.get(sys.platform, DEFAULT_ICON)
-        # Ctrl+C quits at once. GTK's loop would otherwise hold Python's handler back until the window's next event.
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        # Raise KeyboardInterrupt so the API's finally block also closes the library and server.
+        signal.signal(signal.SIGINT, signal.default_int_handler)
         # private_mode=False keeps the page's saved settings, like the theme and filters, between runs.
         webview.start(private_mode=False, icon=str(icon))
 
