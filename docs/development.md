@@ -85,6 +85,40 @@ The server takes these options:
 
 ## Tests
 
+For a local validation plan requiring only standard-library Python:
+
+```bash
+python3 scripts/check-local --help
+python3 scripts/check-local
+python3 scripts/check-local --run
+```
+
+The default prints a plan and executes nothing. `--run` uses only an existing
+`.venv/bin/python`; missing environments or dependencies are reported as skipped.
+It never creates or changes the environment, installs packages, runs the launcher,
+builds an app, or downloads models. Dependency probing has a 30-second limit and
+the unit suite has a 180-second limit. Failures return nonzero; skips alone do not.
+Owned process groups are terminated on timeout or interruption (POSIX).
+
+Subprocesses receive fresh temporary HOME, data, configuration, cache and temp
+directories inside this checkout, an environment without inherited credentials,
+`HF_HUB_OFFLINE=1`, `BROWSER=true`, and `PYTHONDONTWRITEBYTECODE=1`.
+Python socket connections are restricted to loopback for the existing HTTP unit
+fixtures, and real PhotoKit imports are blocked. These are guardrails, not an OS
+sandbox for arbitrary code. Tests use generated fixtures. Native window/menu tests and process-launching
+lifecycle tests are excluded with reasons printed in the plan and final results.
+The runner's own subprocess tests are also run separately with the command below.
+These exclusions keep the command compatible with the Intel lifecycle tests
+without weakening its no-launch guard. Native desktop interactions, privacy
+prompts, real photo libraries and packaged model inference remain **unverified**.
+No hosted CI or frontend/browser checks are invoked by this command.
+
+Test the runner itself without third-party dependencies or importing Orchard:
+
+```bash
+python3 -B -m unittest discover -s tests -p test_check_local.py
+```
+
 Run the Python tests, and the linters and TypeScript check:
 
 ```bash
