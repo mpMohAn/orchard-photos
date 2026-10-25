@@ -10,6 +10,12 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = ('PIL', 'pillow_heif', 'numpy', 'onnxruntime', 'tokenizers', 'huggingface_hub', 'webview')
+EXCLUDED_SUITES = {
+    'test_window.py': 'native window/menu initialization',
+    'test_lifecycle.py': 'starts an Orchard server process; run separately',
+    'test_clone_launcher.py': 'starts clone launcher subprocesses; run separately',
+    'test_check_local.py': 'runner subprocess tests; run separately',
+}
 GUARDS = '''
 import sys, unittest
 class NoPhotos:
@@ -59,6 +65,13 @@ def execute(command, env, timeout, cwd=ROOT):
             child.wait()
 
 
+def suite_plan(root):
+    files = sorted(path.name for path in (root / 'tests').glob('test_*.py'))
+    selected = [name for name in files if name not in EXCLUDED_SUITES]
+    skipped = [(name, EXCLUDED_SUITES[name]) for name in files if name in EXCLUDED_SUITES]
+    return selected, skipped
+
+
 def main(argv=None, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run', action='store_true', help='execute available checks')
@@ -66,7 +79,10 @@ def main(argv=None, root=ROOT):
     print('Plan: probe existing .venv/bin/python dependencies (30s), then unit suite (180s).')
     print('Isolated temporary HOME/data/cache/temp; generated fixtures; no installs or launcher.')
     print('UNVERIFIED: native desktop interactions, privacy prompts, real photo libraries,')
-    print('and packaged model inference. Native test_window.py is excluded.', flush=True)
+    print('and packaged model inference.', flush=True)
+    selected, skipped = suite_plan(root)
+    for name, reason in skipped:
+        print(f'EXCLUDED: {name}: {reason}')
     if not args.run:
         print('Plan only; no checks executed. Use --run to execute.')
         return 0
@@ -91,17 +107,15 @@ sys.exit(3 if missing else 0)
             print(f'FAILED: dependency probe: {detail}')
             print('Summary: 0 passed, 1 failed, 1 skipped (unit suite)')
             return 1
-        suite = GUARDS + '''
-from pathlib import Path
-suite = unittest.TestSuite()
-for path in sorted(Path('tests').glob('test_*.py')):
-    if path.name not in ('test_window.py', 'test_check_local.py'):
-        suite.addTests(unittest.defaultTestLoader.discover('tests', pattern=path.name))
+        suite = GUARDS + '\nsuite = unittest.TestSuite()\nfor name in ' + repr(selected) + ''':
+    suite.addTests(unittest.defaultTestLoader.discover('tests', pattern=name))
 sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())
 '''
         status, detail = execute([str(python), '-B', '-c', suite], env, 180, root)
         print(f'{status}: unit suite: {detail}')
-        print(f'Summary: {int(status == "PASSED")} passed, {int(status == "FAILED")} failed, 1 skipped (native window tests)')
+        for name, reason in skipped:
+            print(f'SKIPPED: {name}: {reason}')
+        print(f'Summary: {int(status == "PASSED")} passed, {int(status == "FAILED")} failed, {len(skipped)} skipped test modules')
         return int(status == 'FAILED')
 
 

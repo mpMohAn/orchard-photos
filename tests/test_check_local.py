@@ -31,6 +31,22 @@ class RunnerTests(unittest.TestCase):
         self.assertIn('Plan only', output)
         self.assertEqual(list(self.root.iterdir()), [])
 
+    def test_suite_plan_excludes_process_and_native_checks(self):
+        tests = self.root / 'tests'
+        tests.mkdir()
+        names = ('test_api.py', 'test_window.py', 'test_lifecycle.py',
+                 'test_clone_launcher.py', 'test_check_local.py')
+        for name in names:
+            (tests / name).touch()
+        selected, skipped = runner['suite_plan'](self.root)
+        self.assertEqual(selected, ['test_api.py'])
+        self.assertEqual({name for name, reason in skipped}, set(names) - {'test_api.py'})
+        self.assertTrue(all(reason for name, reason in skipped))
+        code, output = self.invoke([])
+        self.assertEqual(code, 0)
+        for name, reason in skipped:
+            self.assertIn(f'EXCLUDED: {name}: {reason}', output)
+
     def test_missing_environment_is_skipped(self):
         code, output = self.invoke(['--run'])
         self.assertEqual(code, 0)

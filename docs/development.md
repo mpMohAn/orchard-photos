@@ -105,8 +105,11 @@ directories inside this checkout, an environment without inherited credentials,
 `HF_HUB_OFFLINE=1`, `BROWSER=true`, and `PYTHONDONTWRITEBYTECODE=1`.
 Python socket connections are restricted to loopback for the existing HTTP unit
 fixtures, and real PhotoKit imports are blocked. These are guardrails, not an OS
-sandbox for arbitrary code. Tests use generated fixtures. `test_window.py` is
-excluded because it creates native windows. Native desktop interactions, privacy
+sandbox for arbitrary code. Tests use generated fixtures. Native window/menu tests and process-launching
+lifecycle tests are excluded with reasons printed in the plan and final results.
+The runner's own subprocess tests are also run separately with the command below.
+These exclusions keep the command compatible with the Intel lifecycle tests
+without weakening its no-launch guard. Native desktop interactions, privacy
 prompts, real photo libraries and packaged model inference remain **unverified**.
 No hosted CI or frontend/browser checks are invoked by this command.
 
