@@ -1,4 +1,5 @@
 """Real processes and HTTP, with generated photos and no access to the user's library."""
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -20,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 @unittest.skipIf(sys.platform == 'win32', 'SIGTERM lifecycle is POSIX-specific')
 class LifecycleTests(unittest.TestCase):
     def test_single_instance_quit_relaunch_preserves_index_and_originals(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory() as temporary, ExitStack() as processes:
             root = Path(temporary).resolve()
             photos = root / 'photos'
             photos.mkdir()
@@ -40,22 +41,40 @@ class LifecycleTests(unittest.TestCase):
                     return json.load(response)
 
             def ready(process):
-                deadline = time.monotonic() + 30
+                # Allow cold native-dependency startup on shared hosted runners.
+                # Keep this bounded, and distinguish a scan error from slow process startup.
+                deadline = time.monotonic() + 120
+                last_status = None
+                last_error = None
+
+                def diagnostics():
+                    output = logs[process.pid].read_text(encoding='utf-8', errors='replace')[-8000:]
+                    return f'Last status: {last_status!r}; last HTTP error: {last_error!r}\nServer output:\n{output}'
+
                 while time.monotonic() < deadline:
-                    self.assertIsNone(process.poll(), 'Server exited before becoming ready')
+                    self.assertIsNone(process.poll(), f'Server exited before becoming ready. {diagnostics()}')
                     try:
-                        result = status()
-                        if result['library'] and result['library']['scan']['state'] == 'ready':
-                            return result
-                    except OSError:
-                        pass
+                        last_status = status()
+                        library = last_status['library']
+                        if library:
+                            self.assertNotEqual(library['scan']['state'], 'error', diagnostics())
+                            if library['scan']['state'] == 'ready' and library['updated']:
+                                return last_status
+                    except OSError as error:
+                        last_error = str(error)
                     time.sleep(0.1)
-                self.fail('Server did not finish scanning')
+                self.fail(f'Server did not finish scanning within 120s. {diagnostics()}')
+
+            logs = {}
 
             def launch(folder=None):
+                log = root / f'server-{len(logs)}.log'
+                output = processes.enter_context(log.open('wb'))
                 process = subprocess.Popen(command + ([str(folder)] if folder else []), cwd=ROOT,
-                                           env={**os.environ, 'HF_HUB_OFFLINE': '1', 'BROWSER': 'true'}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                self.addCleanup(lambda: stop(process))
+                                           env={**os.environ, 'HF_HUB_OFFLINE': '1', 'BROWSER': 'true'},
+                                           stdout=output, stderr=subprocess.STDOUT)
+                logs[process.pid] = log
+                processes.callback(stop, process)
                 return process
 
             def stop(process):
@@ -70,6 +89,7 @@ class LifecycleTests(unittest.TestCase):
 
             first = launch(photos)
             before = ready(first)
+            self.assertEqual(before['library']['counts']['images'], 1)
             second = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=10)
             self.assertEqual(second.returncode, 0, second.stderr)
             if not launcher:
