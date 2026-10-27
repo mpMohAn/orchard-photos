@@ -10,9 +10,11 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 from urllib.parse import parse_qs, quote, urlparse
 import urllib.request
@@ -529,54 +531,70 @@ def main(argv=None):
         server = Server(('127.0.0.1', args.port), Handler)
     except OSError as error:
         # Another launch may have started the server since the check above.
-        if join_running():
-            return
+        for _ in range(25 if error.errno == errno.EADDRINUSE else 1):
+            if join_running():
+                return
+            time.sleep(0.2)
         if error.errno in (errno.EACCES, getattr(errno, 'WSAEACCES', errno.EACCES)):
             # Windows reserves port ranges for Hyper-V and WSL, and other systems keep ports below 1024 for root.
             reserved = ' See the reserved ranges with: netsh int ipv4 show excludedportrange protocol=tcp' if sys.platform == 'win32' else ''
             sys.exit(f'Port {args.port} is reserved by the system. Start {APP["name"]} on another port with --port.{reserved}')
         sys.exit(f'Port {args.port} is used by another program. Quit that program, or start {APP["name"]} on another port with --port.')
-    if args.show == 'window' and (reason := unavailable()):
-        print(f'{APP["name"]} is opening in the browser, because {reason}', flush=True)
-        args.show = 'browser'
-    app = server.app = App(args.data_dir)
+    app = None
+    serving = None
+    stopped = threading.Event()
+    previous_term = signal.signal(signal.SIGTERM, signal.default_int_handler)
     try:
-        if folder:
-            app.open(folder)
-        elif app.recent() and reachable(app.recent()[0]):
-            app.open(app.recent()[0])
-    except ValueError as error:
-        sys.exit(str(error))
-    if not args.no_watch:
-        def watch():
-            pause = WATCH_SECONDS
-            while not threading.Event().wait(pause):
-                if app.library:
-                    app.library.scan()
-                    pause = max(WATCH_SECONDS, WATCH_LISTING_FACTOR * app.library.stats.get('listed_seconds', 0))
-        threading.Thread(target=watch, daemon=True).start()
-    if app.encoder.downloaded():
-        # Load the model before the first search, then index.
-        app.prepare()
-    print(f'{APP["name"]} is running at {url}', flush=True)
-    if args.show == 'window':
-        # The window runs on the main thread, as macOS requires, and closing it quits.
-        app.window = Window(APP['name'], url)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
+        if args.show == 'window' and (reason := unavailable()):
+            if os.environ.get('ORCHARD_APP'):
+                sys.exit(f'Orchard cannot open its native window: {reason}. Reinstall the window dependencies with Python 3.13, then relaunch.')
+            print(f'{APP["name"]} is opening in the browser, because {reason}', flush=True)
+            args.show = 'browser'
+        app = server.app = App(args.data_dir)
         try:
-            app.window.run()
+            if folder:
+                app.open(folder)
+            elif app.recent() and reachable(app.recent()[0]):
+                app.open(app.recent()[0])
+        except ValueError as error:
+            sys.exit(str(error))
+        if not args.no_watch:
+            def watch():
+                pause = WATCH_SECONDS
+                while not stopped.wait(pause):
+                    if app.library:
+                        app.library.scan()
+                        pause = max(WATCH_SECONDS, WATCH_LISTING_FACTOR * app.library.stats.get('listed_seconds', 0))
+            threading.Thread(target=watch, daemon=True).start()
+        if app.encoder.downloaded():
+            # Load the model before the first search, then index.
+            app.prepare()
+        print(f'{APP["name"]} is running at {url}', flush=True)
+        if args.show == 'window':
+            # The window runs on the main thread, as macOS requires, and closing it quits.
+            app.window = Window(APP['name'], url)
+            serving = threading.Thread(target=server.serve_forever, daemon=True)
+            serving.start()
+            try:
+                app.window.run()
+            except KeyboardInterrupt:
+                pass
+            return
+        if args.show == 'browser':
+            threading.Timer(0.3, lambda: open_browser(url)).start()
+        try:
+            server.serve_forever()
         except KeyboardInterrupt:
             pass
-        server.shutdown()
+    finally:
+        stopped.set()
+        if serving is not None:
+            server.shutdown()
+            serving.join()
         server.server_close()
-        app.close()
-        return
-    if args.show == 'browser':
-        threading.Timer(0.3, lambda: open_browser(url)).start()
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        server.server_close()
+        if app is not None:
+            app.close()
+        signal.signal(signal.SIGTERM, previous_term)
 
 
 if __name__ == '__main__':

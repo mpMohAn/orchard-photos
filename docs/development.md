@@ -106,16 +106,18 @@ On Windows, run `python scripts\smoke-test`. CI runs the Python tests and the sm
 
 ## Building the downloads
 
-The Mac DMG and the Windows zip carry their own Python, with the packages installed, so they need no Python or terminal. `scripts/build-app` builds the one for the computer it runs on, an Apple Silicon Mac or Windows x64, into `build/`. Run it with Python 3.13, the version inside the app, since pip installs the packages for the Python that runs it:
+For isolated Intel app review, lifecycle checks and rollback, see [Intel macOS app review](intel-mac.md).
+
+The Mac DMG and the Windows zip carry their own Python, with the packages installed, so they need no Python or terminal. `scripts/build-app` builds the one for the computer it runs on, an Intel or Apple Silicon Mac, or Windows x64, into `build/`. Run it with Python 3.13, the version inside the app, since pip installs the packages for the Python that runs it:
 
 ```bash
 python3.13 scripts/build-app
 ```
 
-- **macOS** gives `build/Orchard-mac-arm64.dmg`, holding `Orchard.app`. Its executable is a small launcher, compiled from `scripts/app/macos-launcher.c` with the Xcode command line tools. It runs python-build-standalone's Python from inside `Contents/MacOS`, so its window shows under Orchard's name and icon. A compiled launcher, unlike a script, lets macOS ask to allow Desktop and Documents and remember the answer. The app is signed ad hoc, so macOS asks once for Open Anyway, and each new build counts as a new app that asks for folders again. `scripts/install-app` compiles the same launcher with `-DSTART_SCRIPT` for a clone's app, where it runs `./orchard` instead.
+- **macOS** gives `build/Orchard-mac-arm64.dmg` on Apple Silicon or `build/Orchard-mac-x86_64.dmg` on Intel, holding `Orchard.app`. Its executable is a small launcher, compiled from `scripts/app/macos-launcher.c` with the Xcode command line tools. It runs python-build-standalone's Python from inside `Contents/MacOS`, so its window shows under Orchard's name and icon. A compiled launcher, unlike a script, lets macOS ask to allow Desktop and Documents and remember the answer. The app is signed ad hoc, so macOS asks once for Open Anyway, and each new build counts as a new app that asks for folders again. `scripts/install-app` compiles the same launcher with `-DSTART_SCRIPT` for a clone's app, where it runs `./orchard` instead.
 - **Windows** gives `build/Orchard-windows-x64.zip`, holding an `Orchard` folder. `Orchard.exe` is a small launcher, compiled from `scripts/app/windows-launcher.cs` with the .NET compiler that comes with Windows. It runs python.org's embeddable Python in `runtime\`.
 
-Both launchers, in `scripts/app/`, write Python's output to a log, `~/Library/Logs/Orchard.log` or `%TEMP%\Orchard.log`, and show its end if Orchard stops without opening. When the log says "Operation not permitted", the Mac one also names the Files & Folders setting. To test a build the way CI does, point the smoke test at its launcher:
+Both launchers, in `scripts/app/`, write Python's output to a log, `~/Library/Logs/Orchard.log` or `%TEMP%\Orchard.log`, and show a startup alert if Orchard stops without opening. The Mac alert points to the local log without showing private traceback paths. When the log says "Operation not permitted", the Mac one also names the Files & Folders setting. To test a build the way CI does, point the smoke test at its launcher:
 
 ```bash
 scripts/smoke-test --launcher build/dmg/Orchard.app/Contents/MacOS/Orchard
