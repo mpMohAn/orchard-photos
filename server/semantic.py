@@ -63,6 +63,8 @@ class Encoder:
 
     def __init__(self, cache: Path):
         self.cache = Path(cache)
+        self.controls = None
+        self.cpu_threads = 0
         self.lock = threading.RLock()
         self.activity = None
         self.failure = None
@@ -181,8 +183,14 @@ class Encoder:
                              if name in onnxruntime.get_available_providers()]
                 vision_file, text_file, tokenizer_file = (self._path(*file) for file in _files(self.core_ml))
                 try:
-                    vision = vision or onnxruntime.InferenceSession(str(vision_file), providers=providers)
-                    text = onnxruntime.InferenceSession(str(text_file), providers=providers)
+                    options = {}
+                    if self.cpu_threads:
+                        session_options = onnxruntime.SessionOptions()
+                        session_options.intra_op_num_threads = self.cpu_threads
+                        session_options.inter_op_num_threads = 1
+                        options['sess_options'] = session_options
+                    vision = vision or onnxruntime.InferenceSession(str(vision_file), providers=providers, **options)
+                    text = onnxruntime.InferenceSession(str(text_file), providers=providers, **options)
                     tokenizer = Tokenizer.from_file(str(tokenizer_file))
                 except Exception as error:
                     raise RuntimeError("The search model could not load. Check the Python and ONNX Runtime versions in Copy diagnostics. On Intel macOS use the supported Python 3.13 and ONNX Runtime 1.23.2 environment; report the failure before changing models or clearing caches.") from error
@@ -372,6 +380,8 @@ class SemanticIndex:
             state, error = self._state, self._error
         if state == "idle" and ready:
             state = "ready"
+        elif self.encoder.controls and self.encoder.controls.paused and not ready and state != 'error':
+            state = 'paused'
         # Between runs, the shared encoder says whether the model is downloading, loading, or failed to.
         if state == "idle" and self.encoder.activity:
             state = self.encoder.activity
@@ -423,6 +433,8 @@ class SemanticIndex:
             return
         try:
             self._set_state("idle")
+            if self.encoder.controls and not self.encoder.controls.checkpoint(cancelled):
+                return
             unreadable = set()
             while True:
                 with connect(self.directory) as connection:
@@ -435,7 +447,7 @@ class SemanticIndex:
                 self.encoder.load()
                 self._set_state("indexing")
                 for offset in range(0, len(pending), BATCH_SIZE):
-                    if cancelled():
+                    if cancelled() or (self.encoder.controls and not self.encoder.controls.checkpoint(cancelled)):
                         self._set_state("idle")
                         return
                     images, ids = [], []

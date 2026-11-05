@@ -1,0 +1,197 @@
+#!/usr/bin/env python3
+"""Benchmark an isolated Orchard server on generated photos, without changing the installed app.
+
+Uses existing dependencies only. --visual requires a complete local model cache;
+downloads are disabled. Results describe this generated workload, not a personal library.
+"""
+import argparse
+import contextlib
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import resource
+import shutil
+import socket
+import statistics
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import urllib.error
+import urllib.request
+
+from PIL import Image, ImageDraw
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def timed(call):
+    start = time.perf_counter()
+    value = call()
+    return value, time.perf_counter() - start
+
+
+def summary(samples):
+    ordered = sorted(samples)
+    return {'samples': len(samples), 'median_ms': round(statistics.median(samples) * 1000, 3),
+            'p95_ms': round(ordered[min(len(ordered) - 1, int(len(ordered) * .95))] * 1000, 3)}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--images', type=int, default=200)
+    parser.add_argument('--out', type=Path, required=True, help='new JSON report; never overwrites an existing report')
+    parser.add_argument('--threads', type=int, default=0, help='inference CPU threads; 0 keeps ONNX automatic scheduling')
+    parser.add_argument('--visual', action='store_true', help='include real offline model inference and description search')
+    parser.add_argument('--models', type=Path, help='complete existing model cache, copied into temporary data so the source stays unchanged')
+    args = parser.parse_args()
+    if not 1 <= args.images <= 10000:
+        parser.error('--images must be between 1 and 10000')
+    if not 0 <= args.threads <= 64:
+        parser.error('--threads must be between 0 and 64')
+    if args.out.exists():
+        parser.error('--out already exists; use a new report name')
+    if args.visual and not args.models:
+        parser.error('--visual requires --models; this benchmark never downloads models')
+    if args.models and not args.visual:
+        parser.error('--models is only used with --visual')
+    if args.visual:
+        sys.path.insert(0, str(ROOT))
+        from server.semantic import Encoder
+        if not Encoder(args.models.resolve()).downloaded():
+            parser.error('the model cache is incomplete for this computer; no downloads were attempted')
+
+    with tempfile.TemporaryDirectory(prefix='orchard-benchmark-') as temporary:
+        scratch = Path(temporary).resolve()
+        photos, data = scratch / 'photos', scratch / 'data'
+        photos.mkdir()
+        data.mkdir()
+        (data / 'indexing.json').write_text(json.dumps({'paused': False, 'threads': args.threads}), encoding='utf-8')
+        originals = {}
+        for number in range(args.images):
+            path = photos / f'photo-{number:05}.png'
+            with Image.new('RGB', (1024, 768), ((number * 41) % 256, (number * 79) % 256, (number * 107) % 256)) as image:
+                draw = ImageDraw.Draw(image)
+                draw.rectangle((100, 100, 500 + number % 300, 600), fill='blue')
+                draw.text((40, 40), str(number), fill='white')
+                image.save(path)
+            originals[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
+        if args.visual:
+            shutil.copytree(args.models.resolve(), data / 'models', symlinks=False)
+
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1', 0))
+            port = probe.getsockname()[1]
+        url = f'http://127.0.0.1:{port}'
+
+        def fetch(route):
+            with urllib.request.urlopen(url + route, timeout=5) as response:
+                return response.read()
+
+        def status():
+            return json.loads(fetch('/api/status'))
+
+        peak_rss = [0]
+        stop_monitor = threading.Event()
+
+        def monitor():
+            while not stop_monitor.wait(.25):
+                result = subprocess.run(['ps', '-o', 'rss=', '-p', str(process.pid)], capture_output=True, text=True)
+                with contextlib.suppress(ValueError):
+                    peak_rss[0] = max(peak_rss[0], int(result.stdout.strip()) * 1024)
+
+        def wait_for(check, timeout=120):
+            deadline = time.monotonic() + timeout
+            last = None
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    raise RuntimeError(f'Server exited with {process.returncode}; log: {log.read_text()[-6000:]}')
+                try:
+                    last = status()
+                    library = last['library']
+                    if library and library['scan']['state'] == 'error':
+                        raise RuntimeError(library['scan']['error'])
+                    if library and library['search']['state'] == 'error':
+                        raise RuntimeError(library['search']['error'])
+                    if check(last):
+                        return last
+                except (OSError, urllib.error.URLError):
+                    pass
+                time.sleep(.1)
+            raise RuntimeError(f'Timed out; last status: {last}; log: {log.read_text()[-6000:]}')
+
+        log = scratch / 'server.log'
+        usage_before = resource.getrusage(resource.RUSAGE_CHILDREN)
+        started = time.perf_counter()
+        with log.open('wb') as output:
+            process = subprocess.Popen([sys.executable, '-m', 'server.api', str(photos), '--data-dir', str(data),
+                                        '--port', str(port), '--no-watch'], cwd=ROOT,
+                                       env={**os.environ, 'HF_HUB_OFFLINE': '1', 'HF_HUB_DISABLE_TELEMETRY': '1'},
+                                       stdout=output, stderr=subprocess.STDOUT)
+            sampler = threading.Thread(target=monitor)
+            sampler.start()
+            try:
+                first = wait_for(lambda s: s['library'] and s['library']['counts']['images'] > 0)
+                first_image_seconds = time.perf_counter() - started
+                scanned = wait_for(lambda s: s['library'] and s['library']['updated'] and s['library']['scan']['state'] == 'ready')
+                scan_seconds = time.perf_counter() - started
+                assert scanned['library']['counts']['images'] == args.images
+                results = json.loads(fetch('/api/images'))
+                first_id = results['items'][0]['id']
+                page = [timed(lambda: fetch('/api/images'))[1] for _ in range(10)]
+                thumbnails = [timed(lambda: fetch(f'/api/images/{first_id}/thumbnail'))[1] for _ in range(20)]
+                names = [timed(lambda: fetch('/api/images?mode=name&q=photo'))[1] for _ in range(10)]
+                report = {
+                    'schema': 1, 'system': {'platform': platform.platform(), 'machine': platform.machine(),
+                                          'python': platform.python_version(), 'logical_cpus': os.cpu_count()},
+                    'workload': {'generated_images': args.images, 'dimensions': [1024, 768], 'visual': args.visual, 'cpu_threads': args.threads,
+                                 'personal_photos_used': False, 'downloads_allowed': False},
+                    'first_indexed_image_seconds_from_launch': round(first_image_seconds, 3),
+                    'scan_complete_seconds_from_launch': round(scan_seconds, 3),
+                    'scan_images_per_second_including_startup': round(args.images / scan_seconds, 3),
+                    'gallery_api': summary(page), 'cached_thumbnail_api': summary(thumbnails),
+                    'filename_search_api': summary(names), 'counts': scanned['library']['counts'],
+                    'limitations': ['Synthetic PNG workload; not representative-library acceptance.',
+                                    'HTTP timings, not rendered UI frame timings.',
+                                    'Process starts fresh; OS filesystem/import caches are not flushed.',
+                                    'Peak RSS is sampled, not an exact maximum.'],
+                }
+                if args.visual:
+                    ready = wait_for(lambda s: s['library'] and s['library']['search']['state'] == 'ready', timeout=1200)
+                    report['visual_ready_seconds_from_launch'] = round(time.perf_counter() - started, 3)
+                    report['visual_indexed'] = ready['library']['search']['indexed']
+                    report['description_search_api'] = summary([timed(lambda: fetch('/api/images?mode=visual&q=a+blue+rectangle'))[1]
+                                                                for _ in range(5)])
+                assert originals == {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in photos.glob('*.png')}
+                report['originals_unchanged'] = True
+            finally:
+                try:
+                    if process.poll() is None:
+                        process.terminate()
+                        try:
+                            process.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait()
+                            raise RuntimeError('Server did not shut down within ten seconds') from None
+                finally:
+                    stop_monitor.set()
+                    sampler.join()
+        usage_after = resource.getrusage(resource.RUSAGE_CHILDREN)
+        cpu = usage_after.ru_utime + usage_after.ru_stime - usage_before.ru_utime - usage_before.ru_stime
+        report['cpu_seconds_including_sampler'] = round(cpu, 3)
+        report['wall_seconds_including_shutdown'] = round(time.perf_counter() - started, 3)
+        report['sampled_peak_rss_mib'] = round(peak_rss[0] / (1024 * 1024), 2)
+        report['first_status_had_images'] = first['library']['counts']['images'] > 0
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        with args.out.open('x', encoding='utf-8') as output:
+            json.dump(report, output, indent=2)
+            output.write('\n')
+        print(json.dumps(report, indent=2))
+
+
+if __name__ == '__main__':
+    main()

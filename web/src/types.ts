@@ -11,7 +11,7 @@ export interface Picture { id: string; width: number; height: number; mime: stri
 interface FileCopy { path: string; modified: string }
 export interface Details { id: string; width: number; height: number; mime: string; size: number; taken: string | null; camera: string | null; root: string; source: 'folder' | 'photos'; files: FileCopy[]; preview: boolean }
 /** `received` and `size` are bytes, sent while the model downloads. */
-export interface SearchStatus { state: 'idle' | 'downloading' | 'loading' | 'indexing' | 'ready' | 'error'; indexed: number; total: number; downloaded: boolean; received?: number; size?: number; error?: string }
+export interface SearchStatus { state: 'idle' | 'downloading' | 'loading' | 'indexing' | 'paused' | 'ready' | 'error'; indexed: number; total: number; downloaded: boolean; received?: number; size?: number; error?: string }
 /** Visual queries can be answered: some images are prepared. */
 export const searchable = (search: SearchStatus) => search.indexed > 0;
 /** Visual search is downloading, starting, or preparing images for the first time. */

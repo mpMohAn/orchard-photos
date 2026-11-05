@@ -472,6 +472,37 @@ class SemanticTests(unittest.TestCase):
             self.search.index(cancelled=lambda: encode.call_count >= 1)
         self.assertEqual(self.search.status()["indexed"], 16)
 
+    def test_pause_after_batch_preserves_vectors_and_resume_does_not_repeat_them(self):
+        from server.indexing import IndexingControls
+        controls = self.encoder.controls = IndexingControls(self.directory / 'indexing.json')
+        self.add(*[str(n) for n in range(40)])
+
+        def first_batch(**kwargs):
+            controls.update({'paused': True})
+            return np.eye(len(kwargs['images']), 16, dtype=np.float32)
+
+        with patch.object(self.encoder, 'load'), patch.object(self.encoder, 'features', side_effect=first_batch):
+            self.search.index(cancelled=lambda: controls.paused)
+        self.assertEqual(self.search.status()['indexed'], 16)
+        self.assertEqual(self.search.status()['state'], 'paused')
+        controls.update({'paused': False})
+        with patch.object(self.encoder, 'load'), patch.object(self.encoder, 'features',
+                side_effect=lambda **kwargs: np.eye(len(kwargs['images']), 16, dtype=np.float32)) as encode:
+            self.search.index()
+        self.assertEqual(sum(len(call.kwargs['images']) for call in encode.call_args_list), 24)
+        self.assertEqual(self.search.status()['indexed'], 40)
+
+    def test_cpu_thread_limit_is_passed_to_both_model_sessions(self):
+        self.place(False)
+        self.encoder.cpu_threads = 2
+        with patch('onnxruntime.InferenceSession') as session, patch('tokenizers.Tokenizer.from_file'):
+            self.encoder.load()
+        self.assertEqual(session.call_count, 2)
+        for call in session.call_args_list:
+            options = call.kwargs['sess_options']
+            self.assertEqual(options.intra_op_num_threads, 2)
+            self.assertEqual(options.inter_op_num_threads, 1)
+
     def test_folders_share_one_encoder_but_keep_their_own_embeddings(self):
         (self.directory / "other").mkdir()
         other = SemanticIndex(self.directory / "other", self.encoder)

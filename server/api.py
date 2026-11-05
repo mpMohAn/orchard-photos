@@ -22,6 +22,7 @@ import webbrowser
 
 from server import photos
 from server.diagnostics import LAST_ERROR, report
+from server.indexing import IndexingControls
 from server.library import IMAGE_ID, Library
 from server.semantic import Encoder
 from server.updates import Updates
@@ -76,7 +77,10 @@ class App:
     def __init__(self, data_dir: Path):
         self.data_dir = Path(data_dir).resolve()
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.indexing = IndexingControls(self.data_dir / 'indexing.json')
         self.encoder = Encoder(self.data_dir / 'models')
+        self.encoder.controls = self.indexing
+        self.encoder.cpu_threads = self.indexing.threads
         self.recent_path = self.data_dir / 'recent.json'
         self.updates = Updates(self.data_dir / 'updates.json', APP['version'], f'{APP["name"]}/{APP["version"]}')
         self.library: Library | None = None
@@ -131,6 +135,9 @@ class App:
 
     def prepare(self):
         """Set up visual search in the background: download the model if needed, then prepare the open folder."""
+        if self.indexing.paused:
+            return
+
         def run():
             try:
                 self.encoder.load()
@@ -368,6 +375,13 @@ class Handler(BaseHTTPRequestHandler):
             elif route == ('/api/search/index', True):
                 self.app.prepare()
                 self.json({'started': True}, 202)
+            elif route == ('/api/indexing', False):
+                self.json({**self.app.indexing.status(), 'active_threads': self.app.encoder.cpu_threads})
+            elif route == ('/api/indexing', True):
+                settings = self.app.indexing.update(self.form())
+                if not settings['paused'] and self.app.encoder.downloaded():
+                    self.app.prepare()
+                self.json({**settings, 'active_threads': self.app.encoder.cpu_threads})
             elif route == ('/api/images', False):
                 self.json(self.app.current().pictures(params))
             elif route == ('/api/search/image', True):
