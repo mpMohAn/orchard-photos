@@ -492,16 +492,32 @@ class SemanticTests(unittest.TestCase):
         self.assertEqual(sum(len(call.kwargs['images']) for call in encode.call_args_list), 24)
         self.assertEqual(self.search.status()['indexed'], 40)
 
-    def test_cpu_thread_limit_is_passed_to_both_model_sessions(self):
+    def test_cpu_thread_limit_is_passed_to_both_cpu_model_sessions(self):
         self.place(False)
         self.encoder.cpu_threads = 2
-        with patch('onnxruntime.InferenceSession') as session, patch('tokenizers.Tokenizer.from_file'):
+        # Keep CPU coverage independent of the providers installed on the runner.
+        with patch('onnxruntime.get_available_providers', return_value=['CPUExecutionProvider']), \
+                patch('onnxruntime.InferenceSession') as session, patch('tokenizers.Tokenizer.from_file'):
             self.encoder.load()
         self.assertEqual(session.call_count, 2)
         for call in session.call_args_list:
             options = call.kwargs['sess_options']
             self.assertEqual(options.intra_op_num_threads, 2)
             self.assertEqual(options.inter_op_num_threads, 1)
+
+    def test_cpu_limit_keeps_directml_gpu_requirements_and_limits_the_text_session(self):
+        self.encoder.cpu_threads = 2
+        opened = self.load_directml(self.session)
+        self.assertEqual(len(opened), 2)
+        _, vision_providers, vision_options = opened[0]
+        _, text_providers, text_options = opened[1]
+        self.assertEqual(vision_providers, [semantic.DIRECTML, 'CPUExecutionProvider'])
+        self.assertFalse(vision_options.enable_mem_pattern)
+        import onnxruntime
+        self.assertEqual(vision_options.execution_mode, onnxruntime.ExecutionMode.ORT_SEQUENTIAL)
+        self.assertEqual(text_providers, ['CPUExecutionProvider'])
+        self.assertEqual(text_options.intra_op_num_threads, 2)
+        self.assertEqual(text_options.inter_op_num_threads, 1)
 
     def test_folders_share_one_encoder_but_keep_their_own_embeddings(self):
         (self.directory / "other").mkdir()

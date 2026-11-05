@@ -57,7 +57,7 @@ The limited-thread profile traded longer elapsed time for less CPU work. It did 
 
 ## Validation and remaining acceptance
 
-- 183 Python tests passed locally, including controls persistence/validation, CPU options on both model sessions, and preserving partial indexing progress.
+- 184 Python tests passed locally, including controls persistence/validation, CPU options on both CPU model sessions, DirectML GPU compatibility with a CPU text-session limit, and preserving partial indexing progress. The CPU-only test explicitly selects CPU providers so its expectations are independent of the runner's installed GPU providers.
 - A real-process test paused mid-index, verified stable progress, quit while paused, restarted, resumed, and checked that completed batches were not repeated and generated originals were unchanged. It uses deterministic offline vectors to isolate lifecycle behavior; the benchmark separately exercises real ONNX inference.
 - The Playwright smoke scenario verifies pause/resume, saved CPU settings across page reload, the restart explanation, and existing browsing/filtering/map/search interactions. Its server and data are isolated, and downloads are disabled.
 - Ruff, ESLint, TypeScript checks, and the frontend build passed. Rebuilt `dist/` is included with the UI changes.
