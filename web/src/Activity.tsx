@@ -18,6 +18,7 @@ function scanWork(scan: Scan): Work | null {
 /** Visual search's work, named the same in the status line, Library and the map. */
 export function searchWork(search: SearchStatus): Work | null {
   if (search.state === 'downloading') return { key: 'download', label: 'Downloading visual search', detail: `${megabytes(search.received ?? 0)} of ${megabytes(search.size ?? 0)} MB`, value: search.size ? (search.received ?? 0) / search.size : null };
+  if (search.state === 'paused') return { key: 'paused', label: 'Visual indexing paused', detail: `${search.indexed.toLocaleString()} of ${search.total.toLocaleString()}`, value: search.total ? search.indexed / search.total : 0 };
   if (search.state === 'loading') return { key: 'load', label: 'Starting visual search', detail: '', value: null };
   if (search.state === 'indexing' && search.total) return { key: 'index', label: 'Preparing visual search', detail: `${search.indexed.toLocaleString()} of ${search.total.toLocaleString()}`, value: search.indexed / search.total };
   if (search.state === 'error' && !search.indexed) return { key: 'error', label: search.downloaded ? 'Visual search couldn’t start' : 'Visual search couldn’t download', detail: '', value: null, error: true };

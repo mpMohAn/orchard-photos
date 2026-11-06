@@ -150,6 +150,7 @@ main[data-timeline] .gallery { margin-right: calc(var(--page) + var(--timeline))
 .panel .field-note { margin: var(--s2) 0 0; }
 .panel-action { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); margin-top: var(--s4); }
 .panel-action p { margin: 0; }
+.indexing-settings .field { margin-top: var(--s4); }
 /* A ledger: each row taken from the one above, ending at what the grid shows. */
 .counts { display: grid; grid-template-columns: 1fr auto; margin: var(--s4) 0; }
 .counts dt, .counts dd { padding: var(--s1) 0; }

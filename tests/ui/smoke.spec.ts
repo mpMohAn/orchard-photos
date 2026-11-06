@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { FIXTURE } from './server';
+import { checkIndexingControls } from './indexing';
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
@@ -32,6 +33,10 @@ test('opens a folder and browses, filters, maps and searches it', async ({ page 
   await test.step('the grid fills', async () => {
     await expect(pictures).toHaveCount(FIXTURE.images);
     await expect(meta).toHaveText(plural(FIXTURE.images, 'image'));
+  });
+
+  await test.step('indexing controls persist and resume without downloading models', async () => {
+    await checkIndexingControls(page);
   });
 
   await test.step('the viewer opens, steps to the next image and closes', async () => {

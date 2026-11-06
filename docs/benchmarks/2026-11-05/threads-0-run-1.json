@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "system": {
+    "platform": "macOS-14.4.1-x86_64-i386-64bit-Mach-O",
+    "machine": "x86_64",
+    "python": "3.13.2",
+    "logical_cpus": 12
+  },
+  "workload": {
+    "generated_images": 12,
+    "dimensions": [
+      1024,
+      768
+    ],
+    "visual": true,
+    "cpu_threads": 0,
+    "personal_photos_used": false,
+    "downloads_allowed": false
+  },
+  "first_indexed_image_seconds_from_launch": 5.71,
+  "scan_complete_seconds_from_launch": 5.716,
+  "scan_images_per_second_including_startup": 2.099,
+  "gallery_api": {
+    "samples": 10,
+    "median_ms": 1.081,
+    "p95_ms": 2.023
+  },
+  "cached_thumbnail_api": {
+    "samples": 20,
+    "median_ms": 1.013,
+    "p95_ms": 1.663
+  },
+  "filename_search_api": {
+    "samples": 10,
+    "median_ms": 1.2,
+    "p95_ms": 3.333
+  },
+  "counts": {
+    "images": 12,
+    "files": 12,
+    "duplicates": 0,
+    "nearDuplicates": 0,
+    "unreadable": 0
+  },
+  "limitations": [
+    "Synthetic PNG workload; not representative-library acceptance.",
+    "HTTP timings, not rendered UI frame timings.",
+    "Process starts fresh; OS filesystem/import caches are not flushed.",
+    "Peak RSS is sampled, not an exact maximum."
+  ],
+  "visual_ready_seconds_from_launch": 9.026,
+  "visual_indexed": 12,
+  "description_search_api": {
+    "samples": 5,
+    "median_ms": 45.862,
+    "p95_ms": 58.474
+  },
+  "originals_unchanged": true,
+  "cpu_seconds_including_sampler": 27.015,
+  "wall_seconds_including_shutdown": 9.749,
+  "sampled_peak_rss_mib": 1095.16,
+  "first_status_had_images": true
+}

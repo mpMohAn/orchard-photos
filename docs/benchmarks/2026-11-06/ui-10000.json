@@ -1,0 +1,22 @@
+{
+  "generatedImages": 10000,
+  "fixturePixels": [
+    48,
+    48
+  ],
+  "firstImageMs": 1436.341692,
+  "frames": {
+    "samples": 120,
+    "medianMs": 16.5,
+    "p95Ms": 18.69999998807907,
+    "maxMs": 27.69999998807907,
+    "over50ms": 0
+  },
+  "mountedTilesAfterScroll": 80,
+  "viewerOpenedAfterScroll": true,
+  "limitations": [
+    "Tiny generated PNGs; not personal-library acceptance.",
+    "Headless Chromium animation-frame intervals, not physical display FPS.",
+    "No model inference in this UI workload."
+  ]
+}

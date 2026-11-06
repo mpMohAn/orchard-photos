@@ -148,9 +148,46 @@ export function LibraryPanel({ status, shown, narrowed, scanLeft, searchLeft, an
     </>}
     {search.error && search.state !== 'error' && <p className="error-copy">{search.error}</p>}
     {error && <p className="error-copy" role="alert">{error}</p>}
+    <IndexingSettings onRefresh={onRefresh} />
     <hr className="rule" /><h3>{APP_NAME} {status.version}</h3>
     <About library={library} />
   </Panel>;
+}
+
+interface IndexingSettingsState { paused: boolean; threads: number; active_threads: number }
+
+function IndexingSettings({ onRefresh }: { onRefresh: () => void }) {
+  const [settings, setSettings] = useState<IndexingSettingsState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    request<IndexingSettingsState>('/api/indexing', { signal: controller.signal }).then(setSettings, e => {
+      if (!controller.signal.aborted) setError((e as Error).message);
+    });
+    return () => controller.abort();
+  }, []);
+  const update = async (values: Partial<Pick<IndexingSettingsState, 'paused' | 'threads'>>) => {
+    setBusy(true); setError('');
+    try { setSettings(await post<IndexingSettingsState>('/api/indexing', values)); onRefresh(); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  return <section className="indexing-settings" aria-label="Indexing controls">
+    <hr className="rule" /><h3>Indexing controls</h3>
+    <p>Pause applies after the current batch. Prepared images remain searchable, and progress is kept when you quit.</p>
+    {settings && <>
+      <button className="text-button secondary" disabled={busy} onClick={() => void update({ paused: !settings.paused })}>{settings.paused ? 'Resume indexing' : 'Pause indexing'}</button>
+      <fieldset className="field"><label htmlFor="indexing-threads">CPU threads</label><div className="select">
+        <select id="indexing-threads" disabled={busy} value={settings.threads} onChange={e => void update({ threads: Number(e.target.value) })}>
+          {[...new Set([0, 1, 2, 4, 8, settings.threads])].sort((a, b) => a - b).map(count => <option key={count} value={count}>{count === 0 ? 'Automatic' : count}</option>)}
+        </select><ChevronDown />
+      </div></fieldset>
+      <p>Fewer CPU threads can leave more capacity for other apps. Thread changes apply when you next open Orchard; this limits visual-search inference, not photo scanning.</p>
+      {settings.threads !== settings.active_threads && <p role="status">CPU thread change saved. Restart Orchard to apply it.</p>}
+    </>}
+    {error && <p className="error-copy" role="alert">{error}</p>}
+  </section>;
 }
 
 /** The update check and Copy diagnostics, under the version in Info. */

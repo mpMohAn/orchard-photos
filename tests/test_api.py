@@ -252,6 +252,26 @@ class HandlerTests(unittest.TestCase):
                 if window:
                     window.bring_forward.assert_called_once_with()
 
+    def test_indexing_controls_validate_and_persist_without_downloading_models(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = App(Path(folder))
+            handler = self.dispatch('/api/status', JSON)
+            handler.path = '/api/indexing'
+            handler.command = 'POST'
+            handler.server.app = app
+            handler.form = Mock(return_value={'paused': True, 'threads': 2})
+            with patch.object(app, 'prepare') as prepare:
+                handler.dispatch(True)
+            self.assertEqual(handler.json.call_args.args[0], {'paused': True, 'threads': 2, 'active_threads': 0})
+            prepare.assert_not_called()
+            reopened = App(Path(folder))
+            self.assertEqual(reopened.encoder.cpu_threads, 2)
+            self.assertTrue(reopened.indexing.paused)
+            handler.form.return_value = {'threads': True}
+            handler.dispatch(True)
+            self.assertEqual(handler.json.call_args.args[1], 400)
+            self.assertEqual(app.indexing.threads, 2)
+
     def test_linux_folder_dialog_uses_zenity_then_kdialog_then_none(self):
         for installed, program in ((['zenity', 'kdialog'], 'zenity'), (['kdialog'], 'kdialog'), ([], None)):
             with self.subTest(installed=installed), patch('server.api.sys.platform', 'linux'), \
