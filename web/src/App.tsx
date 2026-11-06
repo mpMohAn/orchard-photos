@@ -4,6 +4,7 @@ import { Search, SlidersHorizontal, Moon, Sun, Info, ChevronDown, X, LayoutGrid,
 import Gallery from './Gallery';
 import LibrarySidebar from './LibrarySidebar';
 import DuplicateReview from './DuplicateReview';
+import SearchTools from './SearchTools';
 import { SORTS, type Sort } from './types';
 import type { GalleryHandle } from './Gallery';
 import Timeline from './Timeline';
@@ -53,12 +54,12 @@ export default function App() {
   const [picked, setPicked] = useState<Picture | null>(null);
   const [query, setQuery] = useState(new URLSearchParams(location.search).get('q') || '');
   const [submitted, setSubmitted] = useState(query);
-  const [mode, setMode] = useState<SearchMode>('visual');
+  const [mode, setMode] = useState<SearchMode>('hybrid');
   const [status, setStatus] = useState<Status | null>(null);
   const search = status?.library?.search ?? null;
   const visualReady = !!search && searchable(search);
   // Until visual search can answer, typed queries search file names.
-  const effectiveMode: SearchMode = visualReady ? mode : 'name';
+  const effectiveMode: SearchMode = mode === 'hybrid' ? mode : visualReady ? mode : 'name';
   // A query keeps the mode it was asked in, so images being prepared never change its results underneath it.
   const [askedMode, setAskedMode] = useState<SearchMode | null>(null);
   // A failure stays in the status line until Library, which explains it, has been opened, or setup is tried again.
@@ -184,7 +185,7 @@ export default function App() {
   }, [status, root, clearSearch]);
 
   const fetchResults = useCallback(async (offset: number, signal?: AbortSignal, limit = PAGE_SIZE) => {
-    const params = new URLSearchParams({ ...filterParams(filters), sort: similar || upload || (submitted && queryMode === 'visual') ? 'newest' : sort, q: submitted, mode: queryMode, similar, offset: String(offset), limit: String(limit) });
+    const params = new URLSearchParams({ ...filterParams(filters), sort: similar || upload || (submitted && (queryMode === 'visual' || queryMode === 'hybrid')) ? 'newest' : sort, q: submitted, mode: queryMode, similar, offset: String(offset), limit: String(limit) });
     if (upload) return request<Results>(`/api/search/image?${params}`, { method: 'POST', body: upload, headers: { 'Content-Type': upload.type || 'application/octet-stream' }, signal });
     return request<Results>(`/api/images?${params}`, { signal });
   }, [filters, sort, submitted, queryMode, similar, upload]);
@@ -326,10 +327,10 @@ export default function App() {
   const loadingMatches = mapped && searching && more && !error;
   useEffect(() => { if (loadingMatches && !loading) void reach(total - 1); }, [loadingMatches, loading, total, reach]);
   const highlight = useMemo(() => { if (!searching) lastHighlight.current = null; else if (!loading && !loadingMatches) lastHighlight.current = items.map(item => item.id); return lastHighlight.current; }, [searching, loading, loadingMatches, items]);
-  const asked: Asked = similar || upload ? 'image' : queryMode === 'visual' ? 'words' : queryMode === 'name' ? 'name' : 'nothing';
+  const asked: Asked = similar || upload ? 'image' : queryMode === 'visual' ? 'words' : submitted ? 'name' : 'nothing';
   const subtitle = countLabel(asked, mapped, total, items.length);
   // Visual results only come from prepared images, so while the rest are being prepared the line says how many.
-  const partial = queryMode === 'visual' || similar || upload ? search && search.indexed < search.total && `${search.indexed.toLocaleString()} of ${search.total.toLocaleString()} prepared` : '';
+  const partial = queryMode === 'visual' || (queryMode === 'hybrid' && visualReady) || similar || upload ? search && search.indexed < search.total && `${search.indexed.toLocaleString()} of ${search.total.toLocaleString()} prepared` : '';
   const scope = [filters.folder && `in ${filters.folder}`, filters.type && typeLabel(filters.type), rangeLabel(filters), searching && !loading && partial].filter(Boolean).map(part => ` · ${part}`).join('');
   const gathering = scanBusy && !library?.counts.images;
   // Time left is measured here, where the status always arrives, so Library and the map have it the moment they open.
@@ -347,7 +348,7 @@ export default function App() {
       </form>}
       <div className="header-actions">{ready && <><div className="view-switch" role="group" aria-label="View"><button className="text-button" aria-pressed={!mapped} aria-label="Grid" title="Grid" onClick={() => setView('grid')}><LayoutGrid /><span>Grid</span></button><button className="text-button" aria-pressed={mapped} aria-label="Map" title="Map by appearance" onClick={() => setView('map')}><ChartScatter /><span>Map</span></button></div><button ref={anchors.filters} className={filtered ? 'text-button filter-on' : 'text-button'} aria-label={filtered ? 'Filters, on' : 'Filters'} title={filtered ? 'Filters are on' : 'Filters'} aria-expanded={panel === 'filters'} onClick={() => setPanel('filters')}><SlidersHorizontal /><span>Filter</span></button></>}{ready && <button ref={anchors.library} className="icon-button" aria-label="Info" title="Info" aria-expanded={panel === 'library'} onClick={() => setPanel('library')}><Info /></button>}<button className="icon-button" aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} title={theme === 'light' ? 'Dark mode' : 'Light mode'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon /> : <Sun />}</button></div>
     </header>
-    {ready && <div className="workspace-title"><h1>{searching ? 'Search results' : filters.folder || 'All photos'}</h1>{!mapped && <div className="selection-tools"><label className="workspace-sort"><span className="sr-only">Sort images</span><select value={similar || upload || (submitted && queryMode === 'visual') ? 'relevance' : sort} disabled={mapped || !!similar || !!upload || (!!submitted && queryMode === 'visual')} onChange={event => { setSort(event.target.value as Sort); window.scrollTo(0, 0); }}>{(similar || upload || (submitted && queryMode === 'visual')) && <option value="relevance">Relevance</option>}{SORTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>{selecting && <><span role="status">{marked.size} selected</span><button className="text-button" onClick={() => setMarked(new Set(items.map(item => item.id)))}>Select loaded</button><button className="text-button" disabled={!marked.size} onClick={() => setMarked(new Set())}>Clear</button></>}<button className="text-button secondary" aria-pressed={selecting} onClick={() => { setSelecting(value => !value); setMarked(new Set()); }}>{selecting ? 'Done selecting' : 'Select'}</button></div>}</div>}
+    {ready && <div className="workspace-title"><h1>{searching ? 'Search results' : filters.folder || 'All photos'}</h1>{!mapped && <div className="selection-tools"><SearchTools key={root} root={root} query={query} mode={effectiveMode} filters={filters} sort={sort} canSave={!similar && !upload} onSearch={text => { clearSearch(); setQuery(text); setSubmitted(text); setAskedMode(effectiveMode); }} onRestore={saved => { clearSearch(); setQuery(saved.query); setSubmitted(saved.query); setAskedMode(saved.mode); setMode(saved.mode); setFilters(saved.filters); setSort(saved.sort); }} /><label className="workspace-sort"><span className="sr-only">Sort images</span><select value={similar || upload || (submitted && (queryMode === 'visual' || queryMode === 'hybrid')) ? 'relevance' : sort} disabled={mapped || !!similar || !!upload || (!!submitted && (queryMode === 'visual' || queryMode === 'hybrid'))} onChange={event => { setSort(event.target.value as Sort); window.scrollTo(0, 0); }}>{(similar || upload || (submitted && (queryMode === 'visual' || queryMode === 'hybrid'))) && <option value="relevance">Relevance</option>}{SORTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>{selecting && <><span role="status">{marked.size} selected</span><button className="text-button" onClick={() => setMarked(new Set(items.map(item => item.id)))}>Select loaded</button><button className="text-button" disabled={!marked.size} onClick={() => setMarked(new Set())}>Clear</button></>}<button className="text-button secondary" aria-pressed={selecting} onClick={() => { setSelecting(value => !value); setMarked(new Set()); }}>{selecting ? 'Done selecting' : 'Select'}</button></div>}</div>}
     {ready && <div className="library-meta"><p aria-live="polite">{loading || loadingMatches ? 'Finding images…' : error && !items.length ? 'No results' : subtitle}{scope}</p>{library && <Activity library={library} gathering={!!gathering} hideError={!!seenError && seenError === search?.error} onOpen={() => setPanel('library')} />}<button ref={anchors.folder} className="text-button folder-button" title={`${folder!.path}. Choose another folder`} aria-expanded={panel === 'folder'} onClick={() => setPanel('folder')}><FolderOpen /><span>{folder!.name}</span></button></div>}
     <main aria-busy={loading} data-timeline={timelineShown || undefined}>
       {offline && <div className="notice error" role="alert"><span>{APP_NAME} is not responding. If you quit it or closed its Terminal window, start it again.</span><button className="text-button secondary" onClick={refreshStatus}>Retry</button></div>}

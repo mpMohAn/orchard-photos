@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+"""Rehearse a fresh setup, upgrade and rollback entirely inside a temporary folder.
+
+Uses generated images, copied app bundles, isolated HOME/data, and offline mode.
+An optional previous bundle tests an actual older build. No installed app is used.
+"""
+import argparse
+import contextlib
+import hashlib
+import json
+import os
+from pathlib import Path
+import runpy
+import shutil
+import signal
+import socket
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def stop(process):
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(process.pid, signal.SIGTERM)
+    if process.poll() is None:
+        try:
+            process.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            raise RuntimeError('Packaged server did not quit cleanly.') from None
+
+
+def catalog(data, key):
+    with contextlib.closing(sqlite3.connect(data / 'libraries' / key / 'library.sqlite')) as db:
+        images = db.execute('SELECT id FROM images ORDER BY id').fetchall()
+        files = db.execute('SELECT path,image_id FROM files ORDER BY path').fetchall()
+        vectors = db.execute('SELECT image_id,model,hex(vector) FROM semantic_embeddings ORDER BY image_id,model').fetchall()
+    return hashlib.sha256(json.dumps([images, files, vectors]).encode()).hexdigest(), len(vectors)
+
+
+def launch(app, folder, data, home, log, visual=False):
+    with socket.socket() as probe:
+        probe.bind(('127.0.0.1', 0))
+        port = probe.getsockname()[1]
+    url = f'http://127.0.0.1:{port}'
+    environment = {key: value for key, value in os.environ.items()
+                   if not key.startswith(('PYTHON', 'ORCHARD_', 'DYLD_')) and key != 'VIRTUAL_ENV'}
+    environment.update(HOME=str(home), PATH='/usr/bin:/bin', HF_HUB_OFFLINE='1', BROWSER='true')
+    command = [str(app / 'Contents/MacOS/Orchard'), '--browser', '--port', str(port), '--data-dir', str(data), '--no-watch']
+    if folder:
+        command.append(str(folder))
+    with log.open('wb') as output:
+        process = subprocess.Popen(command, cwd=home, env=environment, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
+    try:
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError(f'Launcher exited with {process.returncode}. ' + log.read_text(errors='replace') + '\n' + ((home / 'Library/Logs/Orchard.log').read_text(errors='replace') if (home / 'Library/Logs/Orchard.log').exists() else 'No isolated app log.'))
+            try:
+                with urllib.request.urlopen(url + '/api/status', timeout=2) as response:
+                    status = json.load(response)
+                library = status['library']
+                if library and library['scan']['state'] == 'error':
+                    raise RuntimeError(library['scan'])
+                if visual and library and library['search']['state'] == 'error':
+                    raise RuntimeError(library['search'])
+                if library and library['updated'] and library['scan']['state'] == 'ready' and (not visual or library['search']['state'] == 'ready'):
+                    assert library['counts']['images'] == 2 and library['counts']['files'] == 3, library
+                    with urllib.request.urlopen(url + '/api/images', timeout=10) as response:
+                        assert json.load(response)['total'] > 0
+                    status['_test_url'] = url
+                    return process, status
+            except OSError:
+                pass
+            time.sleep(.2)
+        raise RuntimeError('Packaged server startup timed out. ' + log.read_text(errors='replace'))
+    except BaseException:
+        stop(process)
+        raise
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--app', type=Path, required=True)
+    parser.add_argument('--previous-app', type=Path)
+    parser.add_argument('--models', type=Path, help='existing models copied for offline vector-preservation checks')
+    parser.add_argument('--out', type=Path, required=True)
+    args = parser.parse_args()
+    if sys.platform != 'darwin':
+        parser.error('The distribution rehearsal requires macOS.')
+    app = args.app.resolve()
+    previous = (args.previous_app or args.app).resolve()
+    if not all((bundle / 'Contents/MacOS/Orchard').is_file() for bundle in (app, previous)):
+        parser.error('Both bundles must contain a packaged Orchard launcher.')
+    if args.out.exists():
+        parser.error('Choose a new report path.')
+    with tempfile.TemporaryDirectory(prefix='orchard-distribution-') as temporary:
+        scratch = Path(temporary).resolve()
+        home = scratch / 'home'
+        (home / 'Library/Logs').mkdir(parents=True)
+        photos = scratch / 'generated-photos'
+        photos.mkdir()
+        png = runpy.run_path(str(ROOT / 'scripts/smoke-test'))['png']
+        png(photos / 'red.png', (220, 30, 30))
+        png(photos / 'blue.png', (30, 60, 220))
+        shutil.copy2(photos / 'red.png', photos / 'red-copy.png')
+        originals = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in photos.iterdir()}
+        installed = scratch / 'Applications/Orchard.app'
+        installed.parent.mkdir()
+        shutil.copytree(app, installed, symlinks=True)
+        process, fresh = launch(installed, photos, scratch / 'fresh-data', home, scratch / 'fresh.log')
+        try:
+            with urllib.request.urlopen(fresh['_test_url'] + '/api/images?mode=hybrid&q=type%3Apng', timeout=10) as response:
+                assert json.load(response)['total'] == 2
+        finally:
+            stop(process)
+        shutil.rmtree(installed)
+        shutil.copytree(previous, installed, symlinks=True)
+        data = scratch / 'upgrade-data'
+        data.mkdir()
+        (data / 'retained-setting').write_text('retained')
+        if args.models:
+            shutil.copytree(args.models.resolve(), data / 'models')
+        process, baseline = launch(installed, photos, data, home, scratch / 'baseline.log', bool(args.models))
+        stop(process)
+        key = baseline['folder']['id']
+        before, vectors = catalog(data, key)
+        backup = installed.with_name('Orchard.previous.app')
+        installed.rename(backup)
+        shutil.copytree(app, installed, symlinks=True)
+        process, upgraded = launch(installed, None, data, home, scratch / 'upgrade.log', bool(args.models))
+        try:
+            for endpoint, payload in (
+                ('/api/indexing', {'paused': True, 'threads': 2}),
+                ('/api/searches', {'action': 'save', 'name': 'Upgrade rehearsal', 'query': 'type:png', 'mode': 'hybrid',
+                                  'sort': 'newest', 'filters': {'folder': '', 'type': '', 'range': 'all', 'from': '', 'to': ''}}),
+            ):
+                request = urllib.request.Request(upgraded['_test_url'] + endpoint, json.dumps(payload).encode(), {'Content-Type': 'application/json'})
+                with urllib.request.urlopen(request, timeout=10) as response:
+                    assert response.status == 200
+            indexing = (data / 'indexing.json').read_bytes()
+            if args.models:
+                with urllib.request.urlopen(upgraded['_test_url'] + '/api/images?mode=hybrid&q=a+blue+square', timeout=20) as response:
+                    matches = json.load(response)['items']
+                assert matches and Path(matches[0]['path']).name == 'blue.png', matches
+        finally:
+            stop(process)
+        assert upgraded['folder']['id'] == key
+        assert catalog(data, key)[0] == before, 'Upgrade changed catalog identities or vectors'
+        installed.rename(installed.with_name('Orchard.candidate.app'))
+        backup.rename(installed)
+        process, rollback = launch(installed, None, data, home, scratch / 'rollback.log', bool(args.models))
+        stop(process)
+        assert rollback['folder']['id'] == key
+        assert catalog(data, key)[0] == before, 'Rollback changed catalog identities or vectors'
+        assert (data / 'retained-setting').read_text() == 'retained'
+        assert (data / 'indexing.json').read_bytes() == indexing
+        with contextlib.closing(sqlite3.connect(data / 'libraries' / key / 'library.sqlite')) as db:
+            assert db.execute('SELECT name FROM saved_searches').fetchall() == [('Upgrade rehearsal',)]
+        assert originals == {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in photos.iterdir()}
+        result = {'packagedCombinedSearch': True, 'freshSetup': True, 'upgrade': True, 'rollback': True, 'catalogPreserved': True,
+                  'originalsUnchanged': True, 'settingsSentinelPreserved': True, 'indexingSettingsPreserved': True, 'savedSearchPreserved': True, 'preservedVectors': vectors,
+                  'differentPreviousBundle': previous != app, 'generatedImages': fresh['library']['counts']['images'],
+                  'isolatedHomeAndData': True, 'downloadsAllowed': False,
+                  'limitations': ['Temporary installation paths on this Mac, not a fresh physical Mac or Gatekeeper acceptance.',
+                                  'No personal photos, native Trash operations, or release publication.']}
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
+    print(json.dumps(result))
+
+
+if __name__ == '__main__':
+    main()

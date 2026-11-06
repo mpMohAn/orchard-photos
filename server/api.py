@@ -440,6 +440,13 @@ class Handler(BaseHTTPRequestHandler):
                 if not settings['paused'] and self.app.encoder.downloaded():
                     self.app.prepare()
                 self.json({**settings, 'active_threads': self.app.encoder.cpu_threads})
+            elif route == ('/api/search/suggestions', False):
+                self.json(self.app.current().searches.suggestions(params.get('q', '')))
+            elif route == ('/api/searches', False):
+                self.json(self.app.current().searches.list())
+            elif route == ('/api/searches', True):
+                with self.app._lock:
+                    self.json(self.app.current().searches.update(self.form()))
             elif route == ('/api/duplicates', False):
                 self.json(self.app.current().duplicates.list(params))
             elif route == ('/api/duplicates/history', False):
