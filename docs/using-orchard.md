@@ -173,6 +173,23 @@ Orchard keeps its cache, the search model and the list of recent folders in one 
 
 If you start Orchard with `--data-dir`, it's that folder instead. Run from a clone, the Python packages are separate, in `.venv` inside the clone, and take about 250 MB. The downloaded apps carry their own.
 
+### Duplicate review
+
+Open **Duplicates** in the sidebar. **Exact copies** lists files with identical indexed content hashes. **Similar photos** shows visually related images after indexing and grouping. Compare the previews, dimensions, filenames, and edits before selecting files.
+
+Unchecked files are kept. Select unwanted copies, leave at least one file in the group, and choose **Review selected files**. The review lists the selected original locations and a verified keeper. Check the confirmation box, then choose **Confirm move to Trash**. Each review permits up to 50 files and expires after ten minutes. Orchard rechecks file contents and identity before moving files.
+
+Cleanup uses [macOS Trash](https://developer.apple.com/documentation/foundation/filemanager/trashitem%28at%3Aresultingitemurl%3A%29?language=objc) for regular folder libraries. Apple Photos and other platforms provide read-only duplicate review. Symlinked and hard-linked files require separate handling. Size estimates describe logical file bytes. Clones and shared storage can differ, and files in Trash continue using disk space.
+
+**Recovery workflow**
+
+1. Open **Recent Trash operations** in duplicate review. Find the recorded original and Trash locations.
+2. Open macOS Trash, select the file, and use **Put Back** when available. Otherwise move it back to the recorded original folder after checking for an existing file at that location.
+3. Rescan Orchard to update its catalog.
+4. If an operation is marked partial or interrupted, check both recorded locations before starting another review. Completed moves are journaled individually. Repeating a confirmation returns the saved result, and interrupted moves are left for manual recovery.
+
+Native Trash integration requires desktop acceptance before release. Automated tests use generated files with a simulated Trash directory, and browser tests intercept the move request.
+
 ### Disk space
 
 Each photo needs a thumbnail, its search vector and a map icon. Allow about 600 MB per 10,000 photos, or 1.5 GB for 25,000. The search model adds one copy, shared by every folder. Each HEIC or TIFF photo you open in the viewer also keeps a JPEG up to 4,096 pixels across, so it opens quickly next time.

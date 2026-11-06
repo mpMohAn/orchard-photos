@@ -3,6 +3,7 @@ import { FIXTURE } from './server';
 import { checkIndexingControls } from './indexing';
 import { checkWorkspace } from './workspace';
 import { checkWorkspaceFolders } from './workspace-folders';
+import { checkDuplicates } from './duplicates';
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
@@ -164,5 +165,8 @@ test('opens a folder and browses, filters, maps and searches it', async ({ page 
     await page.keyboard.press('/');
     await expect(box).toBeFocused();
     await page.getByRole('button', { name: 'Grid', exact: true }).click();
+  });
+  await test.step('duplicate classification, comparison and explicit confirmation', async () => {
+    await checkDuplicates(page);
   });
 });

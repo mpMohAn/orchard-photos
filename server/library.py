@@ -12,6 +12,7 @@ from PIL import Image
 from server import photos
 from server.atlas import Atlas
 from server.cache import connect, preview_path, thumbnail_path, while_open
+from server.duplicates import Duplicates
 from server.groups import Groups
 from server.layout import Layout
 from server.scanner import FolderUnavailable, ScanCancelled, Scanner, scaled
@@ -54,6 +55,7 @@ class Library:
         self.atlas = Atlas(self.directory)
         self.layout = Layout(self.semantic)
         self.groups = Groups(self.directory, self.semantic)
+        self.duplicates = Duplicates(self)
         # Vectors from another model can't be mixed with MODEL's, so they go with the map and stacks made from them.
         # The vectors go last, so an interrupted clean-up finishes on the next open.
         if self.semantic.has_other_models():
