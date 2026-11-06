@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Search, SlidersHorizontal, Moon, Sun, Info, ChevronDown, X, LayoutGrid, ChartScatter, FolderOpen, Image as ImageIcon } from 'lucide-react';
 import Gallery from './Gallery';
+import LibrarySidebar from './LibrarySidebar';
 import type { GalleryHandle } from './Gallery';
 import Timeline from './Timeline';
 import Embedding from './Embedding';
@@ -71,6 +72,27 @@ export default function App() {
   const [offline, setOffline] = useState(false);
   const [panel, setPanel] = useState<PanelName | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [marked, setMarked] = useState<Set<string>>(new Set());
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  useEffect(() => { setSelecting(false); setMarked(new Set()); }, [root, filters, submitted, similar, upload, view]);
+  const toggleMarked = useCallback((id: string) => setMarked(previous => {
+    const next = new Set(previous);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  }), []);
+  useEffect(() => {
+    if (!selecting) return;
+    const keyboard = (event: KeyboardEvent) => {
+      if (typing(event.target) || panel || selected !== null || picked) return;
+      if (event.key === 'Escape') { setSelecting(false); setMarked(new Set()); }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
+        event.preventDefault(); setMarked(new Set(items.map(item => item.id)));
+      }
+    };
+    window.addEventListener('keydown', keyboard);
+    return () => window.removeEventListener('keydown', keyboard);
+  }, [selecting, items, panel, selected, picked]);
   const [revision, setRevision] = useState(0);
   const [live, setLive] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -310,9 +332,10 @@ export default function App() {
   const scanLeft = useRemaining(scanBusy && scan?.changed ? `scan:${root}` : '', scan?.done ?? 0, scan?.changed ?? 0);
   const searchLeft = useRemaining(search?.state === 'downloading' ? 'download' : search?.state === 'indexing' ? `index:${root}` : '', search?.state === 'downloading' ? search.received ?? 0 : search?.indexed ?? 0, search?.state === 'downloading' ? search.size ?? 0 : search?.total ?? 0);
   useEffect(() => { if (search?.state !== 'error') setSeenError(''); else if (panel === 'library') setSeenError(search.error ?? ''); }, [search?.state, search?.error, panel]);
-  return <div className={mapped && ready ? 'app map-view' : 'app'} onDragEnter={e => { if (ready && droppable(e)) { e.preventDefault(); dragDepth.current++; setDragging(true); } }} onDragOver={e => { if (!ready || !droppable(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setOverSearch(nearSearch(e.clientY)); }} onDragLeave={() => { dragDepth.current--; if (dragDepth.current <= 0) { setDragging(false); setOverSearch(false); } }} onDrop={e => { if (!ready) return; e.preventDefault(); dragDepth.current = 0; setDragging(false); setOverSearch(false); if (!nearSearch(e.clientY)) return; const id = e.dataTransfer.getData(IMAGE_DRAG); const file = e.dataTransfer.files[0]; if (IMAGE_ID.test(id)) findSimilar(id); else if (file) searchWithImage(file); }}>
-    <header ref={headerRef} className="header">
-      <button className="wordmark" onClick={reset} aria-label={`${APP_NAME}, show every image`}><Lockup /><Mark className="compact-mark" /></button>
+  return <div className={ready ? (mapped ? 'app workspace map-view' : 'app workspace') : 'app'} onDragEnter={e => { if (ready && droppable(e)) { e.preventDefault(); dragDepth.current++; setDragging(true); } }} onDragOver={e => { if (!ready || !droppable(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setOverSearch(nearSearch(e.clientY)); }} onDragLeave={() => { dragDepth.current--; if (dragDepth.current <= 0) { setDragging(false); setOverSearch(false); } }} onDrop={e => { if (!ready) return; e.preventDefault(); dragDepth.current = 0; setDragging(false); setOverSearch(false); if (!nearSearch(e.clientY)) return; const id = e.dataTransfer.getData(IMAGE_DRAG); const file = e.dataTransfer.files[0]; if (IMAGE_ID.test(id)) findSimilar(id); else if (file) searchWithImage(file); }}>
+    {ready && <LibrarySidebar status={status!} folder={filters.folder} open={navigationOpen} onAll={() => { reset(); setNavigationOpen(false); }} onFolder={path => { showFolder(path); window.scrollTo(0, 0); setNavigationOpen(false); }} onChoose={() => setPanel('folder')} onOpened={applyStatus} onRefresh={refreshStatus} />}
+    <header ref={headerRef} className="header" data-workspace={ready || undefined}>
+      {ready ? <button className="text-button workspace-navigation" aria-expanded={navigationOpen} aria-controls="library-sidebar" onClick={() => setNavigationOpen(value => !value)}>Library</button> : <button className="wordmark" onClick={reset} aria-label={`${APP_NAME}, show every image`}><Lockup /><Mark className="compact-mark" /></button>}
       {ready && <form ref={anchors.search} className="search" data-drop={overSearch ? 'over' : dragging ? 'ready' : undefined} role="search" onSubmit={e => { e.preventDefault(); setSimilar(''); setUpload(null); setAskedMode(effectiveMode); setSubmitted(query.trim()); }}>
         {reference && !referenceFailed ? <img className="search-reference" src={reference} alt="Image you are matching" onError={() => setReferenceFailed(true)} /> : reference ? <ImageIcon aria-label="Image you are matching" /> : <Search />}<label className="sr-only" htmlFor="search">Search images</label><input ref={searchRef} id="search" aria-keyshortcuts="/ Meta+K Control+K" value={query} placeholder={dragging ? 'Drop an image to find similar' : similar || upload ? 'Similar images' : effectiveMode === 'visual' ? 'Describe an image, or drop one' : 'Search file names'} onChange={e => setQuery(e.target.value)} />
         {(query || searching) && <button className="icon-button" type="button" aria-label="Clear search" onClick={clearSearch}><X /></button>}
@@ -320,6 +343,7 @@ export default function App() {
       </form>}
       <div className="header-actions">{ready && <><div className="view-switch" role="group" aria-label="View"><button className="text-button" aria-pressed={!mapped} aria-label="Grid" title="Grid" onClick={() => setView('grid')}><LayoutGrid /><span>Grid</span></button><button className="text-button" aria-pressed={mapped} aria-label="Map" title="Map by appearance" onClick={() => setView('map')}><ChartScatter /><span>Map</span></button></div><button ref={anchors.filters} className={filtered ? 'text-button filter-on' : 'text-button'} aria-label={filtered ? 'Filters, on' : 'Filters'} title={filtered ? 'Filters are on' : 'Filters'} aria-expanded={panel === 'filters'} onClick={() => setPanel('filters')}><SlidersHorizontal /><span>Filter</span></button></>}{ready && <button ref={anchors.library} className="icon-button" aria-label="Info" title="Info" aria-expanded={panel === 'library'} onClick={() => setPanel('library')}><Info /></button>}<button className="icon-button" aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} title={theme === 'light' ? 'Dark mode' : 'Light mode'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon /> : <Sun />}</button></div>
     </header>
+    {ready && <div className="workspace-title"><h1>{searching ? 'Search results' : filters.folder || 'All photos'}</h1>{!mapped && <div className="selection-tools">{selecting && <><span role="status">{marked.size} selected</span><button className="text-button" onClick={() => setMarked(new Set(items.map(item => item.id)))}>Select loaded</button><button className="text-button" disabled={!marked.size} onClick={() => setMarked(new Set())}>Clear</button></>}<button className="text-button secondary" aria-pressed={selecting} onClick={() => { setSelecting(value => !value); setMarked(new Set()); }}>{selecting ? 'Done selecting' : 'Select'}</button></div>}</div>}
     {ready && <div className="library-meta"><p aria-live="polite">{loading || loadingMatches ? 'Finding images…' : error && !items.length ? 'No results' : subtitle}{scope}</p>{library && <Activity library={library} gathering={!!gathering} hideError={!!seenError && seenError === search?.error} onOpen={() => setPanel('library')} />}<button ref={anchors.folder} className="text-button folder-button" title={`${folder!.path}. Choose another folder`} aria-expanded={panel === 'folder'} onClick={() => setPanel('folder')}><FolderOpen /><span>{folder!.name}</span></button></div>}
     <main aria-busy={loading} data-timeline={timelineShown || undefined}>
       {offline && <div className="notice error" role="alert"><span>{APP_NAME} is not responding. If you quit it or closed its Terminal window, start it again.</span><button className="text-button secondary" onClick={refreshStatus}>Retry</button></div>}
@@ -333,7 +357,7 @@ export default function App() {
         : searching || filtered ? <div className="empty"><h1>No images here</h1><p>Try another search, or widen the folder, type or date filters.</p><button className="text-button secondary" onClick={reset}>Clear search and filters</button></div>
         : gathering ? <div className="empty"><h1>Gathering your images</h1><p>{scan?.changed ? `Reading ${scan.done?.toLocaleString()} of ${plural(scan.changed, 'file')} in ${folder!.name}. Images appear as they are found.` : scan?.found ? `Looking through ${folder!.name}. ${plural(scan.found, 'image file')} found so far.` : `Looking through ${folder!.name} and its subfolders.`}</p>{scanLeft && <p>{scanLeft}</p>}<div className="empty-progress"><Progress value={scan?.changed ? (scan.done ?? 0) / scan.changed : null} label="Reading images" /></div></div>
         : <div className="empty"><h1>No images in this folder</h1><p>{folder!.name} has no JPEG, PNG, HEIC, WebP, GIF, TIFF, BMP or AVIF files. Hidden folders are skipped.</p><button className="text-button secondary" onClick={() => setPanel('folder')}>Choose another folder</button></div>)
-      : <Gallery ref={galleryRef} items={items} sections={!searching} onOpen={setSelected} />}
+      : <Gallery ref={galleryRef} items={items} sections={!searching} onOpen={setSelected} selecting={selecting} marked={marked} onToggle={toggleMarked} />}
       {timelineShown && <Timeline data={timeline.data} loaded={items.length} gallery={galleryRef} header={headerRef} onReach={reach} />}
       {more && !loading && <div className="load-more" ref={sentinel} aria-live="polite">{loadingMore ? 'Loading…' : ''}</div>}
       </>}

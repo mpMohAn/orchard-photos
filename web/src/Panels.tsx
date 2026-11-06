@@ -156,30 +156,32 @@ export function LibraryPanel({ status, shown, narrowed, scanLeft, searchLeft, an
 
 interface IndexingSettingsState { paused: boolean; threads: number; active_threads: number }
 
-function IndexingSettings({ onRefresh }: { onRefresh: () => void }) {
+export function IndexingSettings({ onRefresh, compact = false }: { onRefresh: () => void; compact?: boolean }) {
   const [settings, setSettings] = useState<IndexingSettingsState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
     const controller = new AbortController();
-    request<IndexingSettingsState>('/api/indexing', { signal: controller.signal }).then(setSettings, e => {
+    const refresh = () => request<IndexingSettingsState>('/api/indexing', { signal: controller.signal }).then(setSettings, e => {
       if (!controller.signal.aborted) setError((e as Error).message);
     });
-    return () => controller.abort();
+    void refresh();
+    window.addEventListener('orchard-indexing-changed', refresh);
+    return () => { controller.abort(); window.removeEventListener('orchard-indexing-changed', refresh); };
   }, []);
   const update = async (values: Partial<Pick<IndexingSettingsState, 'paused' | 'threads'>>) => {
     setBusy(true); setError('');
-    try { setSettings(await post<IndexingSettingsState>('/api/indexing', values)); onRefresh(); }
+    try { setSettings(await post<IndexingSettingsState>('/api/indexing', values)); window.dispatchEvent(new Event('orchard-indexing-changed')); onRefresh(); }
     catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   };
-  return <section className="indexing-settings" aria-label="Indexing controls">
+  return <section className={compact ? 'indexing-settings compact-indexing' : 'indexing-settings'} aria-label={compact ? 'Workspace indexing controls' : 'Indexing controls'}>
     <hr className="rule" /><h3>Indexing controls</h3>
     <p>Pause applies after the current batch. Prepared images remain searchable, and progress is kept when you quit.</p>
     {settings && <>
       <button className="text-button secondary" disabled={busy} onClick={() => void update({ paused: !settings.paused })}>{settings.paused ? 'Resume indexing' : 'Pause indexing'}</button>
-      <fieldset className="field"><label htmlFor="indexing-threads">CPU threads</label><div className="select">
-        <select id="indexing-threads" disabled={busy} value={settings.threads} onChange={e => void update({ threads: Number(e.target.value) })}>
+      <fieldset className="field"><label htmlFor={compact ? 'workspace-threads' : 'indexing-threads'}>CPU threads</label><div className="select">
+        <select id={compact ? 'workspace-threads' : 'indexing-threads'} disabled={busy} value={settings.threads} onChange={e => void update({ threads: Number(e.target.value) })}>
           {[...new Set([0, 1, 2, 4, 8, settings.threads])].sort((a, b) => a - b).map(count => <option key={count} value={count}>{count === 0 ? 'Automatic' : count}</option>)}
         </select><ChevronDown />
       </div></fieldset>

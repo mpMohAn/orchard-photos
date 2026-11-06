@@ -56,7 +56,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Deliverable:** A more polished and capable photo-browsing experience.
 
-**Current status:** Not delivered. The existing grid, map, filters, search bar, and viewer are not evidence of a new UI implementation.
+**Current status:** First workspace preview implemented on `feature/library-workspace`. It adds a responsive folder/library sidebar, current folder heading, explicit selection mode with select-loaded/clear and keyboard shortcuts, and persistent indexing controls beside real activity status. Generated-data smoke tests cover folder navigation, preview opening, selection, settings synchronization, light/dark themes, and 320/375/414/768 px layouts. A 10,000-image generated browser check retained virtualized rendering. This is a bounded first-fold preview. Sorting improvements, richer preview interactions, unified multi-folder browsing, and representative-library acceptance remain pending.
 
 ## Phase 4 — Duplicate management
 
@@ -112,7 +112,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 | --- | --- |
 | 1. Native Intel Mac application | Substantially implemented and tested; remaining items listed above |
 | 2. Intel performance | Baseline, controls, and generated 10,000-image scanner/browser checks verified; representative-library acceptance remains |
-| 3. Modern photo-management UI | Not delivered |
+| 3. Modern photo-management UI | Sidebar, selection and activity-controls preview implemented; full phase remains pending |
 | 4. Duplicate management | Not delivered |
 | 5. Smarter local search | Not delivered |
 | 6. Distribution | Packaging groundwork completed; release acceptance remains |

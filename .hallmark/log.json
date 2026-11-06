@@ -1,0 +1,10 @@
+[
+  {
+    "date": "2026-11-06",
+    "macrostructure": "Workbench",
+    "theme": "existing Orchard system",
+    "enrichment": "none",
+    "brief": "Bounded library sidebar, gallery selection and indexing controls preview",
+    "constraints": "Preserve the system font, existing light/dark tokens and component ownership. Generated fixtures only."
+  }
+]
