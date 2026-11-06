@@ -311,3 +311,27 @@ main[data-timeline] .gallery { margin-right: calc(var(--page) + var(--timeline))
   .selection-tools { justify-content: flex-start; }
   .workspace .text-button, .workspace .icon-button { min-height: var(--touch-control); }
 }
+
+.workspace-sort select { max-width: 100%; height: var(--touch-control); padding: 0 var(--s3); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: var(--control-radius); }
+.workspace-sources { margin-bottom: var(--s4); }
+.workspace-source { display: flex; align-items: center; min-width: 0; }
+.workspace-source > .sidebar-row { flex: 1; min-width: 0; }
+.workspace-source > .icon-button { flex-shrink: 0; }
+.workspace-add { padding: var(--s2); display: grid; gap: var(--s2); }
+.workspace-add label { color: var(--muted); }
+.workspace-add input { min-width: 0; width: 100%; padding: var(--s2); background: var(--bg); border: 1px solid var(--line); border-radius: var(--control-radius); }
+.workspace-add-actions { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.viewer-layout { grid-template-rows: var(--s20) minmax(0, 1fr) auto; }
+.viewer-layout:not([data-details]) { grid-template-columns: minmax(0, 1fr); }
+.viewer-layout > .image-stage { grid-column: 1; grid-row: 2; }
+.viewer-layout > .image-details { grid-column: 2; grid-row: 2 / 4; }
+.viewer-filmstrip { grid-column: 1; grid-row: 3; display: flex; justify-content: center; gap: var(--s2); padding: var(--s3) var(--page); overflow-x: auto; min-width: 0; }
+.viewer-filmstrip button { flex: 0 0 var(--s16); height: var(--s16); padding: var(--s1); border-radius: var(--radius); }
+.viewer-filmstrip button[aria-current] { box-shadow: inset 0 0 0 2px var(--focus); }
+.viewer-filmstrip img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: var(--radius); }
+@media (max-width: 720px) {
+  .viewer-layout { display: flex; }
+  .viewer-filmstrip { flex-shrink: 0; justify-content: flex-start; }
+  .viewer-navigation { gap: var(--s1); }
+  .viewer-top .icon-button { min-width: var(--touch-control); min-height: var(--touch-control); }
+}

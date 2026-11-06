@@ -1,4 +1,4 @@
-"""One folder's library: its scan, visual index, map, and the queries the API answers from them."""
+"""A catalog and its scan, visual index, map, and API queries."""
 from datetime import UTC, datetime, timedelta, timezone
 import json
 import logging
@@ -16,6 +16,7 @@ from server.groups import Groups
 from server.layout import Layout
 from server.scanner import FolderUnavailable, ScanCancelled, Scanner, scaled
 from server.semantic import SemanticIndex
+from server.sources import Folders
 
 PAGE_SIZE = 80
 # The most one request returns, so a jump far down the timeline loads the pages above it in a few requests.
@@ -40,11 +41,15 @@ def utc_offset(params) -> int:
 
 
 class Library:
-    def __init__(self, folder: Path, directory: Path, encoder):
+    def __init__(self, folder: Path, directory: Path, encoder, roots=None):
         self.folder = Path(folder)
         self.directory = Path(directory)
+        self.roots = tuple(roots or [self.folder])
         self.photos = photos.is_library(self.folder)
-        self.scanner = Scanner(self.folder, self.directory, photos.PhotosLibrary(self.directory) if self.photos else None)
+        source = photos.PhotosLibrary(self.directory) if self.photos else None
+        if len(self.roots) > 1:
+            source = Folders(self.roots, self.directory)
+        self.scanner = Scanner(self.folder, self.directory, source)
         self.semantic = SemanticIndex(self.directory, encoder)
         self.atlas = Atlas(self.directory)
         self.layout = Layout(self.semantic)
@@ -206,6 +211,9 @@ class Library:
 
     def pictures(self, params, image_bytes=None):
         where, values = self.filters(params)
+        order = params.get('sort', 'newest')
+        if order not in {'newest', 'oldest', 'name-asc', 'name-desc', 'size-asc', 'size-desc'}:
+            raise ValueError('Choose a valid image order.')
         query = params.get('q', '').strip()[:1000]
         reference = params.get('similar', '')
         group = params.get('group', '')
@@ -223,8 +231,17 @@ class Library:
             for word in query.split():
                 where.append("f.path LIKE ? ESCAPE '\\'")
                 values.append('%' + word.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%')
-            rows = self.tiles(where, values)
+            rows = list(self.tiles(where, values))
+            if order == 'oldest':
+                rows.sort(key=lambda row: (row['date'], row['id']))
+            elif order.startswith('name-'):
+                rows.sort(key=lambda row: (row['path'].rsplit('/', 1)[-1].casefold(), row['path'].casefold(), row['id']),
+                          reverse=order == 'name-desc')
+            elif order.startswith('size-'):
+                rows.sort(key=lambda row: (row['size'], row['id']), reverse=order == 'size-desc')
         else:
+            if order != 'newest':
+                raise ValueError('Visual search results use relevance order.')
             self.require_search()
             ranking = dict(self.semantic.search(text=query, image_id=reference, image_bytes=image_bytes))
             # The reference and its near-duplicates come first.
@@ -276,6 +293,9 @@ class Library:
                 return None
             files = [dict(row) for row in db.execute(
                 'SELECT path, modified FROM files WHERE image_id=? ORDER BY modified DESC, path', (image_id,))]
+        if len(self.roots) > 1:
+            for entry in files:
+                entry['original'] = str(self.scanner.source.file(entry['path']))
         return {**dict(image), 'root': photos.NAME if self.photos else str(self.folder), 'source': 'photos' if self.photos else 'folder',
                 'files': files, 'preview': image['mime'] not in WEB_TYPES}
 

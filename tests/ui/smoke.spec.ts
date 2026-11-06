@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { FIXTURE } from './server';
 import { checkIndexingControls } from './indexing';
 import { checkWorkspace } from './workspace';
+import { checkWorkspaceFolders } from './workspace-folders';
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
@@ -39,6 +40,7 @@ test('opens a folder and browses, filters, maps and searches it', async ({ page 
 
   await test.step('workspace navigation, selection and responsive controls', async () => {
     await checkWorkspace(page);
+    await checkWorkspaceFolders(page);
   });
 
   await test.step('indexing controls persist and resume without downloading models', async () => {

@@ -56,7 +56,13 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Deliverable:** A more polished and capable photo-browsing experience.
 
-**Current status:** First workspace preview implemented on `feature/library-workspace`. It adds a responsive folder/library sidebar, current folder heading, explicit selection mode with select-loaded/clear and keyboard shortcuts, and persistent indexing controls beside real activity status. Generated-data smoke tests cover folder navigation, preview opening, selection, settings synchronization, light/dark themes, and 320/375/414/768 px layouts. A 10,000-image generated browser check retained virtualized rendering. This is a bounded first-fold preview. Sorting improvements, richer preview interactions, unified multi-folder browsing, and representative-library acceptance remain pending.
+**Current status:** Implemented for review on `feature/library-workspace` in PR #6. The responsive sidebar provides folder navigation and combined workspaces. Sorting supports newest/oldest, filename, and file size, with saved preferences. Selection includes select-loaded/clear and keyboard shortcuts. The viewer adds a thumbnail strip, a details toggle, Z to switch zoom, and Home/End to navigate to the first/last loaded image. Real indexing activity and persisted pause/CPU settings remain visible.
+
+**Combined-folder behavior:** Add a folder through the sidebar's plus button. Up to 16 separate, non-overlapping image folders share a catalog, filters, filename/description/image search, date timeline, and map infrastructure. Root names namespace file paths, including roots with the same basename. Exact copies share an image record while retaining their original locations. Removing a source changes the workspace. Each distinct folder set has its own cache and initial indexing pass. Existing single-folder cache identities are retained. Workspace paths are saved atomically and restored on app startup. An unavailable root stops rescanning and retains the previous catalog until it reconnects. Apple Photos opens separately.
+
+**Validation:** Generated-data browser tests cover sorting persistence, cross-folder navigation/search, original preview paths, source addition/removal, preview controls, light/dark themes, and responsive layouts. Python tests cover duplicate identity, stable paging/sorts, overlapping-root rejection, failed saves, unavailable drives, platform-safe paths, and real-process workspace restoration. A six-image, two-folder offline smoke test indexed every image using the existing real model cache and passed description/image queries. These checks use isolated generated data.
+
+**Remaining acceptance:** Representative personal-library testing and native desktop review of this UI remain pending. Phase 3 is implemented for review and has not been merged or installed.
 
 ## Phase 4 — Duplicate management
 
@@ -112,7 +118,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 | --- | --- |
 | 1. Native Intel Mac application | Substantially implemented and tested; remaining items listed above |
 | 2. Intel performance | Baseline, controls, and generated 10,000-image scanner/browser checks verified; representative-library acceptance remains |
-| 3. Modern photo-management UI | Sidebar, selection and activity-controls preview implemented; full phase remains pending |
+| 3. Modern photo-management UI | Sorting, previews and combined-folder browsing implemented for review; representative-library/native acceptance remains |
 | 4. Duplicate management | Not delivered |
 | 5. Smarter local search | Not delivered |
 | 6. Distribution | Packaging groundwork completed; release acceptance remains |

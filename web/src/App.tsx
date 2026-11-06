@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { Search, SlidersHorizontal, Moon, Sun, Info, ChevronDown, X, LayoutGrid, ChartScatter, FolderOpen, Image as ImageIcon } from 'lucide-react';
 import Gallery from './Gallery';
 import LibrarySidebar from './LibrarySidebar';
+import { SORTS, type Sort } from './types';
 import type { GalleryHandle } from './Gallery';
 import Timeline from './Timeline';
 import Embedding from './Embedding';
@@ -45,6 +46,7 @@ export default function App() {
   const [filters, setFilters] = useState(initial.filters);
   const [theme, setTheme] = useState(initial.theme);
   const [view, setView] = useState<View>(initial.view);
+  const [sort, setSort] = useState<Sort>(initial.sort);
   // The folder the filters and grid belong to; a different folder resets what only made sense in the old one.
   const [root, setRoot] = useState(initial.root);
   const [picked, setPicked] = useState<Picture | null>(null);
@@ -75,7 +77,7 @@ export default function App() {
   const [selecting, setSelecting] = useState(false);
   const [marked, setMarked] = useState<Set<string>>(new Set());
   const [navigationOpen, setNavigationOpen] = useState(false);
-  useEffect(() => { setSelecting(false); setMarked(new Set()); }, [root, filters, submitted, similar, upload, view]);
+  useEffect(() => { setSelecting(false); setMarked(new Set()); }, [root, filters, submitted, similar, upload, view, sort]);
   const toggleMarked = useCallback((id: string) => setMarked(previous => {
     const next = new Set(previous);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -126,7 +128,7 @@ export default function App() {
   const refreshPending = useRef(false);
   viewerOpen.current = selected !== null || picked !== null;
   useEffect(() => { if (selected === null && picked === null && refreshPending.current) { refreshPending.current = false; setLive(n => n + 1); } }, [selected, picked]);
-  useEffect(() => { document.documentElement.dataset.theme = theme; savePreferences({ theme, filters, view, root }); }, [theme, filters, view, root]);
+  useEffect(() => { document.documentElement.dataset.theme = theme; savePreferences({ theme, filters, sort, view, root }); }, [theme, filters, sort, view, root]);
 
   const clearSearch = useCallback(() => { setQuery(''); setSubmitted(''); setAskedMode(null); setSimilar(''); setUpload(null); }, []);
   useEffect(() => { history.replaceState(null, '', submitted ? `?q=${encodeURIComponent(submitted)}` : location.pathname); }, [submitted]);
@@ -180,10 +182,10 @@ export default function App() {
   }, [status, root, clearSearch]);
 
   const fetchResults = useCallback(async (offset: number, signal?: AbortSignal, limit = PAGE_SIZE) => {
-    const params = new URLSearchParams({ ...filterParams(filters), q: submitted, mode: queryMode, similar, offset: String(offset), limit: String(limit) });
+    const params = new URLSearchParams({ ...filterParams(filters), sort: similar || upload || (submitted && queryMode === 'visual') ? 'newest' : sort, q: submitted, mode: queryMode, similar, offset: String(offset), limit: String(limit) });
     if (upload) return request<Results>(`/api/search/image?${params}`, { method: 'POST', body: upload, headers: { 'Content-Type': upload.type || 'application/octet-stream' }, signal });
     return request<Results>(`/api/images?${params}`, { signal });
-  }, [filters, submitted, queryMode, similar, upload]);
+  }, [filters, sort, submitted, queryMode, similar, upload]);
   useEffect(() => {
     if (!ready) return;
     const controller = new AbortController();
@@ -313,7 +315,7 @@ export default function App() {
       .catch(e => { if (e.name !== 'AbortError') setTimeline(null); });
     return () => controller.abort();
   }, [ready, mapped, searching, timelineKey, revision, live]); // eslint-disable-line react-hooks/exhaustive-deps
-  const timelineShown = !!timeline && timeline.key === timelineKey && !mapped && !searching && !!items.length && timeline.data.months.length > 1 && timeline.data.total > TIMELINE_MIN;
+  const timelineShown = sort === 'newest' && !!timeline && timeline.key === timelineKey && !mapped && !searching && !!items.length && timeline.data.months.length > 1 && timeline.data.total > TIMELINE_MIN;
   const scan = library?.scan;
   const scanBusy = scan?.state === 'scanning';
   // While new results load, the map keeps lighting the previous matches instead of flashing back to everything.
@@ -343,7 +345,7 @@ export default function App() {
       </form>}
       <div className="header-actions">{ready && <><div className="view-switch" role="group" aria-label="View"><button className="text-button" aria-pressed={!mapped} aria-label="Grid" title="Grid" onClick={() => setView('grid')}><LayoutGrid /><span>Grid</span></button><button className="text-button" aria-pressed={mapped} aria-label="Map" title="Map by appearance" onClick={() => setView('map')}><ChartScatter /><span>Map</span></button></div><button ref={anchors.filters} className={filtered ? 'text-button filter-on' : 'text-button'} aria-label={filtered ? 'Filters, on' : 'Filters'} title={filtered ? 'Filters are on' : 'Filters'} aria-expanded={panel === 'filters'} onClick={() => setPanel('filters')}><SlidersHorizontal /><span>Filter</span></button></>}{ready && <button ref={anchors.library} className="icon-button" aria-label="Info" title="Info" aria-expanded={panel === 'library'} onClick={() => setPanel('library')}><Info /></button>}<button className="icon-button" aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} title={theme === 'light' ? 'Dark mode' : 'Light mode'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon /> : <Sun />}</button></div>
     </header>
-    {ready && <div className="workspace-title"><h1>{searching ? 'Search results' : filters.folder || 'All photos'}</h1>{!mapped && <div className="selection-tools">{selecting && <><span role="status">{marked.size} selected</span><button className="text-button" onClick={() => setMarked(new Set(items.map(item => item.id)))}>Select loaded</button><button className="text-button" disabled={!marked.size} onClick={() => setMarked(new Set())}>Clear</button></>}<button className="text-button secondary" aria-pressed={selecting} onClick={() => { setSelecting(value => !value); setMarked(new Set()); }}>{selecting ? 'Done selecting' : 'Select'}</button></div>}</div>}
+    {ready && <div className="workspace-title"><h1>{searching ? 'Search results' : filters.folder || 'All photos'}</h1>{!mapped && <div className="selection-tools"><label className="workspace-sort"><span className="sr-only">Sort images</span><select value={similar || upload || (submitted && queryMode === 'visual') ? 'relevance' : sort} disabled={mapped || !!similar || !!upload || (!!submitted && queryMode === 'visual')} onChange={event => { setSort(event.target.value as Sort); window.scrollTo(0, 0); }}>{(similar || upload || (submitted && queryMode === 'visual')) && <option value="relevance">Relevance</option>}{SORTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>{selecting && <><span role="status">{marked.size} selected</span><button className="text-button" onClick={() => setMarked(new Set(items.map(item => item.id)))}>Select loaded</button><button className="text-button" disabled={!marked.size} onClick={() => setMarked(new Set())}>Clear</button></>}<button className="text-button secondary" aria-pressed={selecting} onClick={() => { setSelecting(value => !value); setMarked(new Set()); }}>{selecting ? 'Done selecting' : 'Select'}</button></div>}</div>}
     {ready && <div className="library-meta"><p aria-live="polite">{loading || loadingMatches ? 'Finding images…' : error && !items.length ? 'No results' : subtitle}{scope}</p>{library && <Activity library={library} gathering={!!gathering} hideError={!!seenError && seenError === search?.error} onOpen={() => setPanel('library')} />}<button ref={anchors.folder} className="text-button folder-button" title={`${folder!.path}. Choose another folder`} aria-expanded={panel === 'folder'} onClick={() => setPanel('folder')}><FolderOpen /><span>{folder!.name}</span></button></div>}
     <main aria-busy={loading} data-timeline={timelineShown || undefined}>
       {offline && <div className="notice error" role="alert"><span>{APP_NAME} is not responding. If you quit it or closed its Terminal window, start it again.</span><button className="text-button secondary" onClick={refreshStatus}>Retry</button></div>}
@@ -357,7 +359,7 @@ export default function App() {
         : searching || filtered ? <div className="empty"><h1>No images here</h1><p>Try another search, or widen the folder, type or date filters.</p><button className="text-button secondary" onClick={reset}>Clear search and filters</button></div>
         : gathering ? <div className="empty"><h1>Gathering your images</h1><p>{scan?.changed ? `Reading ${scan.done?.toLocaleString()} of ${plural(scan.changed, 'file')} in ${folder!.name}. Images appear as they are found.` : scan?.found ? `Looking through ${folder!.name}. ${plural(scan.found, 'image file')} found so far.` : `Looking through ${folder!.name} and its subfolders.`}</p>{scanLeft && <p>{scanLeft}</p>}<div className="empty-progress"><Progress value={scan?.changed ? (scan.done ?? 0) / scan.changed : null} label="Reading images" /></div></div>
         : <div className="empty"><h1>No images in this folder</h1><p>{folder!.name} has no JPEG, PNG, HEIC, WebP, GIF, TIFF, BMP or AVIF files. Hidden folders are skipped.</p><button className="text-button secondary" onClick={() => setPanel('folder')}>Choose another folder</button></div>)
-      : <Gallery ref={galleryRef} items={items} sections={!searching} onOpen={setSelected} selecting={selecting} marked={marked} onToggle={toggleMarked} />}
+      : <Gallery ref={galleryRef} items={items} sections={!searching && sort === 'newest'} onOpen={setSelected} selecting={selecting} marked={marked} onToggle={toggleMarked} />}
       {timelineShown && <Timeline data={timeline.data} loaded={items.length} gallery={galleryRef} header={headerRef} onReach={reach} />}
       {more && !loading && <div className="load-more" ref={sentinel} aria-live="polite">{loadingMore ? 'Loading…' : ''}</div>}
       </>}

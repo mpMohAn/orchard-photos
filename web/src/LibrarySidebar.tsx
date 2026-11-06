@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Folder, FolderPlus, Images } from 'lucide-react';
 import { Lockup } from './Logo';
+import WorkspaceFolders from './WorkspaceFolders';
 import { IndexingSettings } from './Panels';
 import { Progress } from './Progress';
 import { searchWork } from './Activity';
@@ -38,6 +39,7 @@ export default function LibrarySidebar({ status, folder, open, onFolder, onAll, 
     <nav className="sidebar-navigation" aria-label="Photo libraries">
       <p className="sidebar-label">Library</p>
       <button className="sidebar-row" aria-current={!folder ? 'page' : undefined} onClick={onAll}><Images /><span>All photos</span><span className="sidebar-count">{library.counts.images.toLocaleString()}</span></button>
+      <WorkspaceFolders status={status} onOpened={onOpened} onFolder={onFolder} />
       <div className="sidebar-section"><p className="sidebar-label">Folders</p><button className="icon-button" aria-label="Choose library" onClick={onChoose}><FolderPlus /></button></div>
       <p className="sidebar-root" title={status.folder!.path}>{status.folder!.name}</p>
       {!facets && !error && <p className="sidebar-note">Loading folders…</p>}
