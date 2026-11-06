@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, Copy, Download, FolderOpen, Images, ScanSearch, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Copy, Download, FolderOpen, Images, Info, ScanSearch, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Details, Filters, Picture, Results } from './types';
 import { Disclosure } from './Panels';
 import { dateLabel, downloadUrl, fileName, filterParams, folderOf, imageUrl, plural, post, request, sizeLabel, typeLabel } from './types';
@@ -21,6 +21,7 @@ export default function Viewer({ items, index, total, hasMore, loadingMore, page
   const [error, setError] = useState('');
   const [failed, setFailed] = useState(false);
   const [zoom, setZoom] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(true);
   const [copied, setCopied] = useState<{ id: string; note: string } | null>(null);
   // The grid shows one image per group of near-duplicates; the viewer can show any of them.
   const [members, setMembers] = useState<Picture[]>([]);
@@ -75,25 +76,34 @@ export default function Viewer({ items, index, total, hasMore, loadingMore, page
   const parts = folder ? folder.split('/') : [rootName];
   const crumbs = (parts.length > CRUMBS ? ['…', ...parts.slice(-CRUMBS)] : parts).join(' › ');
   return <dialog ref={dialog} tabIndex={-1} className="viewer" aria-label="Image viewer" onCancel={onClose} onKeyDown={e => {
+    if (e.target instanceof HTMLElement && (e.target.isContentEditable || e.target.matches('input, textarea, select'))) return;
+    if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'z') { e.preventDefault(); setZoom(value => !value); }
+    if (!e.metaKey && !e.ctrlKey && e.key === 'Home') { e.preventDefault(); onChange(0); }
+    if (!e.metaKey && !e.ctrlKey && e.key === 'End') { e.preventDefault(); onChange(items.length - 1); }
     if (e.key === 'ArrowRight' && (index < items.length - 1 || hasMore) && !loadingMore) { e.preventDefault(); onChange(index + 1); }
     if (e.key === 'ArrowLeft' && index > 0 && !loadingMore) { e.preventDefault(); onChange(index - 1); }
     if (e.key === 'ArrowDown' && shown < members.length - 1) { e.preventDefault(); setShown(shown + 1); }
     if (e.key === 'ArrowUp' && shown > 0) { e.preventDefault(); setShown(shown - 1); }
     if ((e.metaKey || e.ctrlKey) && e.key === 'c' && !getSelection()?.toString()) { e.preventDefault(); void copy(); }
   }}>
-    <div className="viewer-layout">
+    <div className="viewer-layout" data-details={infoOpen || undefined}>
       <header className="viewer-top"><div className="viewer-navigation">
         <button className="icon-button" aria-label="Previous image" title="Previous image" disabled={index === 0 || loadingMore} onClick={() => onChange(index - 1)}><ArrowLeft /></button>
         <span>{(index + 1).toLocaleString()} / {total.toLocaleString()}</span>
         <button className="icon-button" aria-label="Next image" title="Next image" disabled={loadingMore || (index === items.length - 1 && !hasMore)} onClick={() => onChange(index + 1)}><ArrowRight /></button>
       </div><div className="viewer-navigation">
-        <button className="icon-button" aria-label={zoom ? 'Fit to screen' : 'View actual size'} title={zoom ? 'Fit to screen' : 'Actual size'} onClick={() => setZoom(!zoom)}>{zoom ? <ZoomOut /> : <ZoomIn />}</button>
+        <button className="icon-button" aria-label={infoOpen ? 'Hide image details' : 'Show image details'} aria-expanded={infoOpen} onClick={() => setInfoOpen(value => !value)}><Info /></button>
+        <button className="icon-button" aria-keyshortcuts="Z" aria-label={zoom ? 'Fit to screen' : 'View actual size'} title={zoom ? 'Fit to screen' : 'Actual size'} onClick={() => setZoom(!zoom)}>{zoom ? <ZoomOut /> : <ZoomIn />}</button>
         <button className="icon-button" aria-label="Close image" title="Close" onClick={onClose}><X /></button>
       </div></header>
       <div className={`image-stage ${zoom ? 'zoomed' : ''}`}>
         {failed ? <div className="empty"><p>This image could not be shown. The file may have moved or changed.</p><button className="text-button secondary" onClick={() => setFailed(false)}>Retry</button></div> : <img key={item.id} src={imageUrl(item.id, 'display')} alt={fileName(item.path)} onError={() => setFailed(true)} onClick={() => setZoom(!zoom)} />}
       </div>
-      <aside className="image-details">
+      {items.length > 1 && <nav className="viewer-filmstrip" aria-label="Preview thumbnails">{items.slice(Math.max(0, index - 4), index + 5).map((picture, offset) => {
+        const position = Math.max(0, index - 4) + offset;
+        return <button key={picture.id} aria-label={`Preview ${fileName(picture.path)}`} aria-current={position === index ? 'true' : undefined} disabled={loadingMore} onClick={() => onChange(position)}><img src={imageUrl(picture.id)} alt="" /></button>;
+      })}</nav>}
+      {infoOpen && <aside className="image-details">
         <div className="detail-summary">
           <h1 title={fileName(item.path)}>{fileName(item.path)}</h1>
           <p>{item.dated === 'taken' ? 'Taken' : 'Modified'} {dateLabel(item.date, true)}</p>
@@ -113,12 +123,12 @@ export default function Viewer({ items, index, total, hasMore, loadingMore, page
           <ul>{members.map((member, place) => <li key={member.id}><button aria-pressed={place === shown} aria-label={`Show ${fileName(member.path)}`} title={member.path} onClick={() => setShown(place)}><img src={imageUrl(member.id)} alt="" decoding="async" /></button></li>)}</ul>
         </section>}
         {details && <Disclosure summary="Details">
-          <p className="path">{photos ? `In your ${details.root} library` : `${details.root}/${item.path}`}</p>
+          <p className="path">{photos ? `In your ${details.root} library` : file?.original ?? `${details.root}/${item.path}`}</p>
           {otherDate && <p>{otherDate}</p>}
           {details.camera && <p>{details.camera}</p>}
-          {!!others.length && <><p>Also saved in {plural(others.length, 'other place')}</p><ul className="file-list">{others.map(other => <li key={other.path}><span className="path">{photos ? fileName(other.path) : other.path}</span><button className="icon-button" aria-label={`${reveal}: ${photos ? fileName(other.path) : other.path}`} title={reveal} onClick={() => show(other.path)}><RevealIcon /></button></li>)}</ul></>}
+          {!!others.length && <><p>Also saved in {plural(others.length, 'other place')}</p><ul className="file-list">{others.map(other => <li key={other.path}><span className="path">{photos ? fileName(other.path) : other.original ?? other.path}</span><button className="icon-button" aria-label={`${reveal}: ${photos ? fileName(other.path) : other.original ?? other.path}`} title={reveal} onClick={() => show(other.path)}><RevealIcon /></button></li>)}</ul></>}
         </Disclosure>}
-      </aside>
+      </aside>}
     </div>
   </dialog>;
 }

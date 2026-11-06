@@ -1,4 +1,4 @@
-"""Loopback-only HTTP API and production web server. Serves one folder at a time; the folder can be changed live."""
+"""Loopback-only HTTP API and production web server for a folder or combined workspace."""
 import argparse
 import errno
 import hashlib
@@ -13,6 +13,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -87,7 +88,7 @@ class App:
         self.window: Window | None = None
         self._lock = threading.Lock()
 
-    def resolve(self, value) -> Path:
+    def resolve(self, value, allow_missing=False) -> Path:
         # Explorer's Copy as path puts the path in quotes, which no folder name on Windows contains.
         text = str(value or '').strip().strip('"').strip()
         if not text:
@@ -98,12 +99,12 @@ class App:
         if not path.is_absolute():
             raise ValueError('Enter a full path, like C:\\Users\\you\\Pictures.' if sys.platform == 'win32' else 'Enter a full path, starting with / or ~.')
         try:
-            path = path.resolve(strict=True)
+            path = path.resolve(strict=not allow_missing)
         except (OSError, RuntimeError):
             raise ValueError(f'{text} does not exist.') from None
-        if not path.is_dir():
+        if not path.is_dir() and not (allow_missing and not path.exists()):
             raise ValueError(f'{text} is a file. Choose the folder that contains it.')
-        if not os.access(path, os.R_OK | os.X_OK):
+        if path.exists() and not os.access(path, os.R_OK | os.X_OK):
             raise ValueError(f'{text} cannot be read. Check its permissions.')
         if path == self.data_dir or self.data_dir in path.parents:
             raise ValueError(f'{text} is where {APP["name"]} keeps its cache. Choose a folder of images.')
@@ -120,18 +121,58 @@ class App:
         return path
 
     def open(self, value) -> Library:
-        """Show another folder. Its cache is kept separately, so returning to a folder is instant."""
-        folder = self.resolve(value)
+        """Open one folder using the existing per-folder cache."""
+        return self.open_many([str(value or '')])
+
+    def open_many(self, values, restoring=False) -> Library:
+        """Index selected, non-overlapping folders together in one persistent catalog."""
+        if not isinstance(values, list) or not 1 <= len(values) <= 16 or any(not isinstance(value, str) for value in values):
+            raise ValueError('Choose between 1 and 16 folder paths.')
+        roots = tuple(sorted({self.resolve(value, allow_missing=restoring) for value in values}, key=str))
+        if len(roots) > 1 and any(photos.is_library(root) for root in roots):
+            raise ValueError('Open Apple Photos separately. A combined workspace supports image folders.')
+        if any(left in right.parents for left in roots for right in roots if left != right):
+            raise ValueError('Choose separate folders. A parent folder already includes its subfolders.')
+        identity = str(roots[0]) if len(roots) == 1 else json.dumps([str(root) for root in roots])
+        key = hashlib.sha256(identity.encode()).hexdigest()[:16]
         with self._lock:
-            if self.library and self.library.folder == folder:
+            if self.library and self.library.roots == roots:
                 return self.library
+            library = Library(roots[0], self.data_dir / 'libraries' / key, self.encoder, roots=roots)
+            temporary = None
+            try:
+                for root in reversed(roots):
+                    self.remember(root)
+                with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=self.data_dir, delete=False) as stream:
+                    temporary = Path(stream.name)
+                    json.dump([str(root) for root in roots], stream)
+                temporary.replace(self.data_dir / 'workspace.json')
+            except Exception:
+                library.close()
+                raise
+            finally:
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
             if self.library:
                 self.library.close()
-            key = hashlib.sha256(str(folder).encode()).hexdigest()[:16]
-            library = self.library = Library(folder, self.data_dir / 'libraries' / key, self.encoder)
-            self.remember(folder)
+            self.library = library
         threading.Thread(target=library.scan, daemon=True).start()
         return library
+
+    def restore(self):
+        """Restore a workspace, including cached entries on a temporarily missing drive."""
+        try:
+            paths = json.loads((self.data_dir / 'workspace.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            paths = None
+        if paths:
+            try:
+                self.open_many(paths, restoring=True)
+                return
+            except ValueError:
+                logging.warning('Saved workspace could not be restored')
+        if self.recent() and reachable(self.recent()[0]):
+            self.open(self.recent()[0])
 
     def prepare(self):
         """Set up visual search in the background: download the model if needed, then prepare the open folder."""
@@ -199,6 +240,15 @@ class App:
                                 **({'label': photos.NAME, 'name': photos.NAME} if library.photos else
                                    {'label': tilde(library.folder), 'name': library.folder.name or str(library.folder)})}
             result['library'] = library.status()
+        if library:
+            prefixes = getattr(library.scanner.source, 'roots', {})
+            result['folder']['roots'] = [{'path': str(root), 'name': root.name or str(root),
+                                         'prefix': next((name for name, path in prefixes.items() if path == root), '')}
+                                        for root in library.roots]
+            if len(library.roots) > 1:
+                result['folder'].update(name=f'{len(library.roots)} folders',
+                                        label=' · '.join(tilde(root) for root in library.roots))
+                result['recent'] = [item for item in recent if item['path'] not in {str(root) for root in library.roots}]
         return result
 
 
@@ -353,9 +403,17 @@ class Handler(BaseHTTPRequestHandler):
             elif route == ('/api/updates', True):
                 self.app.updates.turn(self.form().get('enabled') is True)
                 self.json(self.app.updates.status())
+            elif route == ('/api/workspace', True):
+                self.app.open_many(self.form().get('paths'))
+                self.json(self.app.status())
             elif route == ('/api/folder', True):
                 self.app.open(self.form().get('path'))
                 self.json(self.app.status())
+            elif route == ('/api/workspace/choose', True):
+                chosen = self.app.choose()
+                if chosen:
+                    self.app.open_many([str(root) for root in self.app.current().roots] + [chosen])
+                self.json({**self.app.status(), 'cancelled': not chosen})
             elif route == ('/api/folder/choose', True):
                 chosen = self.app.choose()
                 if chosen:
@@ -568,8 +626,8 @@ def main(argv=None):
         try:
             if folder:
                 app.open(folder)
-            elif app.recent() and reachable(app.recent()[0]):
-                app.open(app.recent()[0])
+            else:
+                app.restore()
         except ValueError as error:
             sys.exit(str(error))
         if not args.no_watch:

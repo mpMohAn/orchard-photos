@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { FIXTURE } from './server';
 import { checkIndexingControls } from './indexing';
+import { checkWorkspace } from './workspace';
+import { checkWorkspaceFolders } from './workspace-folders';
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
@@ -15,6 +17,7 @@ async function filter(page: Page, label: string, value: string) {
 }
 
 test('opens a folder and browses, filters, maps and searches it', async ({ page }) => {
+  test.setTimeout(120000);
   const meta = page.locator('.library-meta p');
   const pictures = page.getByRole('button', { name: /^Open / });
 
@@ -33,6 +36,11 @@ test('opens a folder and browses, filters, maps and searches it', async ({ page 
   await test.step('the grid fills', async () => {
     await expect(pictures).toHaveCount(FIXTURE.images);
     await expect(meta).toHaveText(plural(FIXTURE.images, 'image'));
+  });
+
+  await test.step('workspace navigation, selection and responsive controls', async () => {
+    await checkWorkspace(page);
+    await checkWorkspaceFolders(page);
   });
 
   await test.step('indexing controls persist and resume without downloading models', async () => {

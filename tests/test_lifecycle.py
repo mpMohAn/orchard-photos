@@ -95,6 +95,17 @@ class LifecycleTests(unittest.TestCase):
             if not launcher:
                 self.assertIn('already running', second.stdout)
             self.assertIsNone(first.poll())
+            extra = root / 'extra'
+            extra.mkdir()
+            Image.new('RGB', (64, 64), 'green').save(extra / 'green.png')
+            request = urllib.request.Request(url.replace('/status', '/workspace'),
+                                             json.dumps({'paths': [str(photos), str(extra)]}).encode(),
+                                             {'Content-Type': 'application/json'})
+            with urllib.request.urlopen(request, timeout=10) as response:
+                self.assertEqual(response.status, 200)
+            before = ready(first)
+            self.assertEqual(before['library']['counts']['images'], 2)
+            self.assertEqual(len(before['folder']['roots']), 2)
             stop(first)
             with self.assertRaises(OSError):
                 status()
@@ -102,6 +113,6 @@ class LifecycleTests(unittest.TestCase):
             after = ready(again)
             self.assertEqual(after['folder']['id'], before['folder']['id'])
             self.assertEqual(after['library']['counts'], before['library']['counts'])
-            self.assertEqual(after['folder']['path'], str(photos))
+            self.assertEqual(after['folder']['roots'], before['folder']['roots'])
             stop(again)
             self.assertEqual(hashlib.sha256(original.read_bytes()).hexdigest(), digest)

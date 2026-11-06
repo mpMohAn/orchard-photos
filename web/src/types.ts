@@ -3,12 +3,18 @@ import app from '../../app.json';
 export const APP_NAME = app.name;
 export type SearchMode = 'name' | 'visual';
 export type View = 'grid' | 'map';
+export const SORTS = [
+  { value: 'newest', label: 'Newest first' }, { value: 'oldest', label: 'Oldest first' },
+  { value: 'name-asc', label: 'Name A–Z' }, { value: 'name-desc', label: 'Name Z–A' },
+  { value: 'size-desc', label: 'Largest first' }, { value: 'size-asc', label: 'Smallest first' },
+] as const;
+export type Sort = typeof SORTS[number]['value'];
 export type Range = 'all' | 'today' | '7d' | '28d' | 'year' | 'custom';
 export interface Filters { folder: string; type: string; range: Range; from: string; to: string }
 /** One image, described by its newest file that passes the filters. `dated` says where its date came from.
  *  In the grid it fronts its `group` of near-duplicates, `members` images in all, counting itself. */
 export interface Picture { id: string; width: number; height: number; mime: string; size: number; date: string; dated: 'taken' | 'modified'; path: string; copies: number; group: string; members: number }
-interface FileCopy { path: string; modified: string }
+interface FileCopy { path: string; modified: string; original?: string }
 export interface Details { id: string; width: number; height: number; mime: string; size: number; taken: string | null; camera: string | null; root: string; source: 'folder' | 'photos'; files: FileCopy[]; preview: boolean }
 /** `received` and `size` are bytes, sent while the model downloads. */
 export interface SearchStatus { state: 'idle' | 'downloading' | 'loading' | 'indexing' | 'paused' | 'ready' | 'error'; indexed: number; total: number; downloaded: boolean; received?: number; size?: number; error?: string }
@@ -23,7 +29,7 @@ export interface LibraryStatus {
   unlistedFolders: number; unreached: number; photoLibraries: string[]; skipped: { raw?: number; video?: number }; scan: Scan; search: SearchStatus; updated?: string; revision: number;
 }
 /** `photos` says this is the Mac's Photos library, read through Photos rather than as files. */
-export interface Folder { path: string; label: string; name: string; id: string; photos: boolean }
+export interface Folder { path: string; label: string; name: string; id: string; photos: boolean; roots?: { path: string; name: string; prefix: string }[] }
 interface RecentFolder { path: string; label: string; available: boolean }
 /** The visual search model, shared by every folder. `present` says it is downloaded or on its way, and `size` is its
  *  download in bytes. */
@@ -70,7 +76,7 @@ export const downloadUrl = (id: string, path: string) => `/api/images/${id}/orig
 /** Browser storage keys, namespaced by the app so two local apps never read each other's settings. */
 export const storageKey = (name: string) => `${app.slug}.${name}`;
 const STORAGE = storageKey('preferences');
-interface Preferences { filters: Filters; theme: 'light' | 'dark'; view: View; root: string }
+interface Preferences { filters: Filters; sort: Sort; theme: 'light' | 'dark'; view: View; root: string }
 export function readPreferences(): Preferences {
   const theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   try {
@@ -81,8 +87,8 @@ export function readPreferences(): Preferences {
     const custom = validDate(f.from) || validDate(f.to);
     const filters: Filters = { folder: text(f.folder), type: text(f.type), range: RANGES.some(r => r.range === f.range && r.range !== 'all') ? f.range : custom ? 'custom' : 'all', from: validDate(f.from), to: validDate(f.to) };
     if (filters.from && filters.to && filters.from > filters.to) { filters.from = ''; filters.to = ''; }
-    return { filters, theme: ['light', 'dark'].includes(saved.theme) ? saved.theme : theme, view: saved.view === 'map' ? 'map' : 'grid', root: text(saved.root) };
-  } catch { return { filters: defaults, theme, view: 'grid', root: '' }; }
+    return { filters, sort: SORTS.find(item => item.value === saved.sort)?.value ?? 'newest', theme: ['light', 'dark'].includes(saved.theme) ? saved.theme : theme, view: saved.view === 'map' ? 'map' : 'grid', root: text(saved.root) };
+  } catch { return { filters: defaults, sort: 'newest', theme, view: 'grid', root: '' }; }
 }
 export function savePreferences(preferences: Preferences) {
   try { localStorage.setItem(STORAGE, JSON.stringify(preferences)); } catch { /* Browsing remains available without storage. */ }

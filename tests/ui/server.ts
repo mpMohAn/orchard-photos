@@ -71,6 +71,9 @@ export default async function setup() {
     }
   }
   process.env.ORCHARD_UI_PHOTOS = photos;
+  const extra = join(scratch, 'extra');
+  writeImages(extra, { 'copper.png': [120, 80, 30], 'red-copy.png': [220, 30, 30] }, OLD_DATE);
+  process.env.ORCHARD_UI_EXTRA = extra;
   // HF_HUB_OFFLINE keeps the search model from ever downloading.
   const server = spawn(PYTHON, ['-m', 'server.api', '--port', String(PORT), '--data-dir', join(scratch, 'data'), '--no-watch'],
     { cwd: ROOT, env: { ...process.env, HF_HUB_OFFLINE: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
