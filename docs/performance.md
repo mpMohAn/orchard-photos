@@ -64,3 +64,13 @@ The limited-thread profile traded longer elapsed time for less CPU work. It did 
 - Representative large-library acceptance, scanner resource throttling, and rendered UI responsiveness under a large indexing workload remain unverified/not implemented. The scope of this PR is the repeatable baseline plus visual-indexing controls; it does not mark every Phase 2 outcome complete.
 
 No merge, installed-app replacement, personal-photo access, or release publication is part of this validation.
+
+## Generated 10,000-image checks, 2026-11-06
+
+The 1024×768 scanner workload completed in 80.164 seconds, with its first image at 1.540 seconds and sampled peak RSS of 145.76 MiB. All 10,000 original hashes remained unchanged. Gallery API median was 1.295 ms. Filename-search p95 was 296.651 ms, including a cold query.
+
+A separate opt-in browser workload used 10,000 tiny 48×48 generated PNGs. The first tile appeared 1.436 seconds after opening the folder. Across 120 animation frames while scrolling, the median interval was 16.5 ms, p95 18.7 ms, and maximum 27.7 ms. There were 80 mounted tiles after scrolling, and the full-size viewer opened successfully. These headless browser intervals do not establish physical display frame rates. Neither workload performs model inference. Both ran on the same machine during this validation session, so the measurements are observational rather than controlled comparisons.
+
+Raw reports are in [benchmarks/2026-11-06](benchmarks/2026-11-06). Reproduce the browser check with `ORCHARD_UI_LARGE=1 npm run test:ui -- --grep 'large library'`. The normal smoke fixture remains unchanged. Representative-library acceptance and responsiveness during large-scale real-model indexing remain pending.
+
+All seven jobs passed in [GitHub Actions run 42053895128](https://github.com/mpMohAn/orchard-photos/actions/runs/42053895128), including the retried Apple Silicon job.

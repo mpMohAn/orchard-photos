@@ -111,7 +111,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 | Phase | Status |
 | --- | --- |
 | 1. Native Intel Mac application | Substantially implemented and tested; remaining items listed above |
-| 2. Intel performance | Baseline and visual-indexing controls ready for review; large-library acceptance remains |
+| 2. Intel performance | Baseline, controls, and generated 10,000-image scanner/browser checks verified; representative-library acceptance remains |
 | 3. Modern photo-management UI | Not delivered |
 | 4. Duplicate management | Not delivered |
 | 5. Smarter local search | Not delivered |

@@ -64,6 +64,12 @@ export default async function setup() {
   const photos = join(scratch, 'photos');
   writeImages(photos, TODAY);
   writeImages(photos, OLD, OLD_DATE);
+  // Opt-in large-catalog exercise. Normal CI keeps the original six-image fixture.
+  if (process.env.ORCHARD_UI_LARGE === '1') {
+    for (let n = 0; n < 10000 - FIXTURE.images; n++) {
+      writeFileSync(join(photos, `generated-${String(n).padStart(5, '0')}.png`), png([n % 256, Math.floor(n / 256), 0]));
+    }
+  }
   process.env.ORCHARD_UI_PHOTOS = photos;
   // HF_HUB_OFFLINE keeps the search model from ever downloading.
   const server = spawn(PYTHON, ['-m', 'server.api', '--port', String(PORT), '--data-dir', join(scratch, 'data'), '--no-watch'],
