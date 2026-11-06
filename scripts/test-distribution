@@ -150,6 +150,10 @@ def main():
                 with urllib.request.urlopen(upgraded['_test_url'] + '/api/images?mode=hybrid&q=a+blue+square', timeout=20) as response:
                     matches = json.load(response)['items']
                 assert matches and Path(matches[0]['path']).name == 'blue.png', matches
+                reference = urllib.request.Request(upgraded['_test_url'] + '/api/search/image', (photos / 'blue.png').read_bytes(), {'Content-Type': 'image/png'})
+                with urllib.request.urlopen(reference, timeout=20) as response:
+                    image_matches = json.load(response)['items']
+                assert image_matches and Path(image_matches[0]['path']).name == 'blue.png', image_matches
         finally:
             stop(process)
         assert upgraded['folder']['id'] == key
@@ -165,7 +169,7 @@ def main():
         with contextlib.closing(sqlite3.connect(data / 'libraries' / key / 'library.sqlite')) as db:
             assert db.execute('SELECT name FROM saved_searches').fetchall() == [('Upgrade rehearsal',)]
         assert originals == {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in photos.iterdir()}
-        result = {'packagedCombinedSearch': True, 'freshSetup': True, 'upgrade': True, 'rollback': True, 'catalogPreserved': True,
+        result = {'packagedCombinedSearch': True, 'packagedImageQuery': bool(args.models), 'freshSetup': True, 'upgrade': True, 'rollback': True, 'catalogPreserved': True,
                   'originalsUnchanged': True, 'settingsSentinelPreserved': True, 'indexingSettingsPreserved': True, 'savedSearchPreserved': True, 'preservedVectors': vectors,
                   'differentPreviousBundle': previous != app, 'generatedImages': fresh['library']['counts']['images'],
                   'isolatedHomeAndData': True, 'downloadsAllowed': False,

@@ -106,7 +106,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Current status:** Distribution implementation is ready for review on `feature/search-distribution`. The Intel builder produces an ad hoc signed, self-contained DMG, a SHA-256 sidecar, and a source/runtime manifest. Release automation retains native x86_64 coverage and adds a temporary fresh-setup/upgrade/rollback rehearsal with archived reports. A local cached-package build validates requirement pins and native architectures before reuse.
 
-**Validation and remaining acceptance:** An isolated Intel DMG passed an initial fresh-home setup and upgrade/rollback rehearsal against the older review bundle, preserving catalog identity and two real embeddings. The final candidate is rebuilt after source validation, with a final package report recorded separately. This tests isolated HOME/data and temporary installation paths on this Mac. Fresh physical-Mac, Gatekeeper, native privacy, published-release, and user-approved replacement acceptance remain pending.
+**Validation and remaining acceptance:** The final 66 MB Intel DMG passed signature, checksum, source-manifest, bundled Python 3.13.16, ONNX Runtime 1.23.2, and toolkit checks. Packaged combined-text and uploaded-image queries passed with real offline models. Fresh-home setup and upgrade/rollback against the older review bundle preserved catalog identities, two embeddings, saved searches, indexing settings, and generated originals. [Artifact evidence](docs/benchmarks/2026-11-06/phase6-artifact.json) and [distribution rehearsal](docs/benchmarks/2026-11-06/phase6-distribution.json) record the results. This tests isolated HOME/data and temporary installation paths on this Mac. Fresh physical-Mac, Gatekeeper, native privacy, published-release, and user-approved replacement acceptance remain pending.
 
 ## Execution and safety rules
 
@@ -136,6 +136,6 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 | 3. Modern photo-management UI | Sorting, previews and combined-folder browsing implemented for review; representative-library/native acceptance remains |
 | 4. Duplicate management | Review/confirmation/journal implemented; native Trash and representative-library acceptance pending |
 | 5. Smarter local search | Combined ranking, metadata filters, suggestions and saved searches implemented for review; representative relevance evaluation pending |
-| 6. Distribution | Intel DMG and isolated setup/upgrade/rollback tooling implemented; final candidate validation and release acceptance tracked above |
+| 6. Distribution | Final Intel review DMG and isolated setup/upgrade/rollback validated; fresh physical-Mac/Gatekeeper and release acceptance remain |
 
 Update this file as evidence changes. Scope changes must be explicitly approved by the user and recorded here; do not silently replace this plan with a different one.
