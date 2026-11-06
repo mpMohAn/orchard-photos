@@ -4,7 +4,7 @@ This is the agreed scope for improving both the native Intel macOS application a
 
 Source: [Original planning conversation](https://chatgpt.com/share/6ae210f5-0158-83e8-bef2-a447f7b37c65), including the original-plan screenshot supplied by the user.
 
-Status recorded: 2026-11-05. Status describes work evidenced in this conversation; it is not a claim that every requirement has shipped.
+Status recorded on 2026-11-06. Implementation, automated validation, manual acceptance, and release are tracked separately below.
 
 ## Product goal
 
@@ -44,7 +44,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Current status:** Baseline and visual-indexing controls implemented on `feature/intel-performance`, ready for review. Added a repeatable generated-image benchmark, persisted pause/resume, and configurable inference CPU threads (applied on app restart), with controls in Info. Local validation passed 184 Python tests, the Playwright smoke scenario, lint/type checks, and the frontend build. Three real-model benchmark runs per CPU profile are recorded in [docs/performance.md](docs/performance.md). These changes are not yet merged or installed, and do not establish representative large-library acceptance.
 
-**Remaining work:** Review the baseline and indexing-controls PR, validate larger/representative workloads and rendered UI responsiveness, and add further scanner/cache/resource changes only where measurements justify them. The current CPU setting limits inference threads, not photo scanning or a hard percentage of total CPU. Personal-photo access still requires explicit authorization; generated-data results must not be presented as full large-library acceptance.
+**Remaining acceptance:** Review PR #5 and validate representative-library behavior during real-model indexing. Generated 10,000-image scanner and browser checks are complete and recorded in [docs/performance.md](docs/performance.md). The CPU setting limits inference threads. Scanner resource controls and further cache changes require measured justification. Personal-photo access requires explicit authorization.
 
 ## Phase 3 — Modern photo-management UI
 
@@ -102,7 +102,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 ## Execution and safety rules
 
-1. Continue from this roadmap. The next product-development phase is Phase 2; keep unfinished Phase 1 items visible instead of repeatedly redefining the overall project around them.
+1. Continue from this roadmap. The active product-development phase is Phase 4. Phases 1–3 have reviewable implementations, with their remaining acceptance items kept visible. Complete duplicate management next, followed by Phase 5 search improvements and Phase 6 distribution.
 2. Preserve the existing architecture and functionality. Make targeted changes rather than an unsolicited rewrite or broad code reorganization.
 3. Keep the Intel ONNX Runtime 1.23.2 compatibility change until a replacement is explicitly justified and validated with both pinned image and text models. Verify other platforms when dependency changes affect them.
 4. Work on development branches with isolated test builds/data. Do not replace or modify the user's working Orchard installation automatically.
@@ -111,6 +111,13 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 7. Keep development automation separate from the photo app. Use the existing local Codex/ChatGPT setup within plan limits; do not introduce paid APIs, paid runners, or extra-cost services without approval. Batch routine implementation, checks, and reporting to minimize manual handoffs.
 8. Maintain progress against concrete requirements and evidence. Separate implemented, tested, shipped, and unverified work. Do not invent an overall completion percentage or count existing features as newly delivered.
 9. Keep remaining limitations documented and distinguish generated-data tests from representative-library and real-desktop acceptance.
+
+## Current execution order
+
+1. Phase 4 duplicate management is active. Deliver exact/similar classification, side-by-side review, explicit keep/remove selection, logical size estimates, and confirmed macOS Trash operations with recovery instructions.
+2. Phase 5 local search follows duplicate management.
+3. Phase 6 distribution follows feature validation.
+4. Track remaining Phase 1–3 manual acceptance alongside development. Representative photo access, native permission tests, merge and installation require their applicable authorization.
 
 ## Progress summary
 
