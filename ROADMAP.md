@@ -60,7 +60,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Combined-folder behavior:** Add a folder through the sidebar's plus button. Up to 16 separate, non-overlapping image folders share a catalog, filters, filename/description/image search, date timeline, and map infrastructure. Root names namespace file paths, including roots with the same basename. Exact copies share an image record while retaining their original locations. Removing a source changes the workspace. Each distinct folder set has its own cache and initial indexing pass. Existing single-folder cache identities are retained. Workspace paths are saved atomically and restored on app startup. An unavailable root stops rescanning and retains the previous catalog until it reconnects. Apple Photos opens separately.
 
-**Validation:** Generated-data browser tests cover sorting persistence, cross-folder navigation/search, original preview paths, source addition/removal, preview controls, light/dark themes, and responsive layouts. Python tests cover duplicate identity, stable paging/sorts, overlapping-root rejection, failed saves, unavailable drives, platform-safe paths, and real-process workspace restoration. A six-image, two-folder offline smoke test indexed every image using the existing real model cache and passed description/image queries. These checks use isolated generated data.
+**Validation:** Phase 3 passed 193 Python tests and [GitHub CI](https://github.com/mpMohAn/orchard-photos/actions/runs/42191815565). Generated-data browser tests cover sorting persistence, cross-folder navigation/search, original preview paths, source addition/removal, preview controls, light/dark themes, and responsive layouts. Python tests cover duplicate identity, stable paging/sorts, overlapping-root rejection, failed saves, unavailable drives, platform-safe paths, and real-process workspace restoration. A six-image, two-folder offline smoke test indexed every image using the existing real model cache and passed description/image queries. These checks use isolated generated data.
 
 **Remaining acceptance:** Representative personal-library testing and native desktop review of this UI remain pending. Phase 3 is implemented for review and has not been merged or installed.
 
@@ -74,7 +74,11 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Deliverable:** Safe duplicate review and cleanup, with user control and recoverability.
 
-**Current status:** Not delivered. Existing similar-image grouping is the foundation, not the completed cleanup workflow.
+**Current status:** Implemented for review on `feature/duplicate-review`. The sidebar opens exact-copy and similar-photo categories with group navigation, side-by-side previews, dimensions, original paths, and logical extra-file size estimates. Files default to keep. Cleanup requires a selected subset, a server-generated review, a verified keeper, a confirmation checkbox, and an explicit final move action.
+
+**Cleanup behavior:** macOS folder libraries use native Trash. Apple Photos and other platforms provide read-only review. Each review permits up to 50 files and expires after ten minutes. Content hashes and file identity are checked again before moves. Symlinked and hard-linked files are read-only. A durable per-catalog journal records progress and resulting Trash locations. Repeated confirmations return saved outcomes. Partial and interrupted operations stop for review and manual recovery. [Recovery instructions](docs/using-orchard.md#duplicate-review) describe Put Back, recorded locations, and rescanning.
+
+**Validation and remaining acceptance:** All 208 Python tests, browser smoke, lint/type checks, and the frontend build passed locally. Automated tests cover exact/similar classification, unchanged-file and keeper checks, explicit confirmation, partial failures, journal failures, interruption, repeated requests, and combined-folder source identity. Browser tests cover comparison, keep selection, cancellation, confirmation, results, and mobile layout. Automated filesystem moves use generated files and a simulated Trash location. Browser move requests are intercepted. Native macOS Trash/Put Back acceptance and representative-library review remain pending.
 
 ## Phase 5 — Smarter local search
 
@@ -102,7 +106,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 ## Execution and safety rules
 
-1. Continue from this roadmap. The active product-development phase is Phase 4. Phases 1–3 have reviewable implementations, with their remaining acceptance items kept visible. Complete duplicate management next, followed by Phase 5 search improvements and Phase 6 distribution.
+1. Continue from this roadmap. Phase 4 duplicate management has a reviewable implementation with native Trash acceptance pending. The next product-development phase is Phase 5 search improvements, followed by Phase 6 distribution. Keep the remaining acceptance items from earlier phases visible.
 2. Preserve the existing architecture and functionality. Make targeted changes rather than an unsolicited rewrite or broad code reorganization.
 3. Keep the Intel ONNX Runtime 1.23.2 compatibility change until a replacement is explicitly justified and validated with both pinned image and text models. Verify other platforms when dependency changes affect them.
 4. Work on development branches with isolated test builds/data. Do not replace or modify the user's working Orchard installation automatically.
@@ -114,8 +118,8 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 ## Current execution order
 
-1. Phase 4 duplicate management is active. Deliver exact/similar classification, side-by-side review, explicit keep/remove selection, logical size estimates, and confirmed macOS Trash operations with recovery instructions.
-2. Phase 5 local search follows duplicate management.
+1. Review Phase 4 duplicate management and complete isolated native Trash/recovery acceptance when authorized.
+2. Phase 5 local search is the next implementation phase.
 3. Phase 6 distribution follows feature validation.
 4. Track remaining Phase 1–3 manual acceptance alongside development. Representative photo access, native permission tests, merge and installation require their applicable authorization.
 
@@ -126,7 +130,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 | 1. Native Intel Mac application | Substantially implemented and tested; remaining items listed above |
 | 2. Intel performance | Baseline, controls, and generated 10,000-image scanner/browser checks verified; representative-library acceptance remains |
 | 3. Modern photo-management UI | Sorting, previews and combined-folder browsing implemented for review; representative-library/native acceptance remains |
-| 4. Duplicate management | Not delivered |
+| 4. Duplicate management | Review/confirmation/journal implemented; native Trash and representative-library acceptance pending |
 | 5. Smarter local search | Not delivered |
 | 6. Distribution | Packaging groundwork completed; release acceptance remains |
 

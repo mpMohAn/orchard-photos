@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { Search, SlidersHorizontal, Moon, Sun, Info, ChevronDown, X, LayoutGrid, ChartScatter, FolderOpen, Image as ImageIcon } from 'lucide-react';
 import Gallery from './Gallery';
 import LibrarySidebar from './LibrarySidebar';
+import DuplicateReview from './DuplicateReview';
 import { SORTS, type Sort } from './types';
 import type { GalleryHandle } from './Gallery';
 import Timeline from './Timeline';
@@ -74,6 +75,7 @@ export default function App() {
   const [offline, setOffline] = useState(false);
   const [panel, setPanel] = useState<PanelName | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const [duplicatesOpen, setDuplicatesOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [marked, setMarked] = useState<Set<string>>(new Set());
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -126,8 +128,8 @@ export default function App() {
   const previousRevision = useRef<string>('');
   const viewerOpen = useRef(false);
   const refreshPending = useRef(false);
-  viewerOpen.current = selected !== null || picked !== null;
-  useEffect(() => { if (selected === null && picked === null && refreshPending.current) { refreshPending.current = false; setLive(n => n + 1); } }, [selected, picked]);
+  viewerOpen.current = selected !== null || picked !== null || duplicatesOpen;
+  useEffect(() => { if (selected === null && picked === null && !duplicatesOpen && refreshPending.current) { refreshPending.current = false; setLive(n => n + 1); } }, [selected, picked, duplicatesOpen]);
   useEffect(() => { document.documentElement.dataset.theme = theme; savePreferences({ theme, filters, sort, view, root }); }, [theme, filters, sort, view, root]);
 
   const clearSearch = useCallback(() => { setQuery(''); setSubmitted(''); setAskedMode(null); setSimilar(''); setUpload(null); }, []);
@@ -288,7 +290,7 @@ export default function App() {
       if (undo && !editing && stepSearch(!e.shiftKey)) { e.preventDefault(); return; }
       if (!(slash || command) || !input) return;
       e.preventDefault();
-      flushSync(() => { setSelected(null); setPicked(null); setPanel(null); });
+      flushSync(() => { setSelected(null); setPicked(null); setPanel(null); setDuplicatesOpen(false); });
       input.focus(); input.select();
     };
     window.addEventListener('paste', paste); window.addEventListener('keydown', keyboard);
@@ -335,7 +337,7 @@ export default function App() {
   const searchLeft = useRemaining(search?.state === 'downloading' ? 'download' : search?.state === 'indexing' ? `index:${root}` : '', search?.state === 'downloading' ? search.received ?? 0 : search?.indexed ?? 0, search?.state === 'downloading' ? search.size ?? 0 : search?.total ?? 0);
   useEffect(() => { if (search?.state !== 'error') setSeenError(''); else if (panel === 'library') setSeenError(search.error ?? ''); }, [search?.state, search?.error, panel]);
   return <div className={ready ? (mapped ? 'app workspace map-view' : 'app workspace') : 'app'} onDragEnter={e => { if (ready && droppable(e)) { e.preventDefault(); dragDepth.current++; setDragging(true); } }} onDragOver={e => { if (!ready || !droppable(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setOverSearch(nearSearch(e.clientY)); }} onDragLeave={() => { dragDepth.current--; if (dragDepth.current <= 0) { setDragging(false); setOverSearch(false); } }} onDrop={e => { if (!ready) return; e.preventDefault(); dragDepth.current = 0; setDragging(false); setOverSearch(false); if (!nearSearch(e.clientY)) return; const id = e.dataTransfer.getData(IMAGE_DRAG); const file = e.dataTransfer.files[0]; if (IMAGE_ID.test(id)) findSimilar(id); else if (file) searchWithImage(file); }}>
-    {ready && <LibrarySidebar status={status!} folder={filters.folder} open={navigationOpen} onAll={() => { reset(); setNavigationOpen(false); }} onFolder={path => { showFolder(path); window.scrollTo(0, 0); setNavigationOpen(false); }} onChoose={() => setPanel('folder')} onOpened={applyStatus} onRefresh={refreshStatus} />}
+    {ready && <LibrarySidebar status={status!} folder={filters.folder} open={navigationOpen} onAll={() => { reset(); setNavigationOpen(false); }} onFolder={path => { showFolder(path); window.scrollTo(0, 0); setNavigationOpen(false); }} onChoose={() => setPanel('folder')} onOpened={applyStatus} onRefresh={refreshStatus} onDuplicates={() => { setDuplicatesOpen(true); setNavigationOpen(false); setPanel(null); }} />}
     <header ref={headerRef} className="header" data-workspace={ready || undefined}>
       {ready ? <button className="text-button workspace-navigation" aria-expanded={navigationOpen} aria-controls="library-sidebar" onClick={() => setNavigationOpen(value => !value)}>Library</button> : <button className="wordmark" onClick={reset} aria-label={`${APP_NAME}, show every image`}><Lockup /><Mark className="compact-mark" /></button>}
       {ready && <form ref={anchors.search} className="search" data-drop={overSearch ? 'over' : dragging ? 'ready' : undefined} role="search" onSubmit={e => { e.preventDefault(); setSimilar(''); setUpload(null); setAskedMode(effectiveMode); setSubmitted(query.trim()); }}>
@@ -364,6 +366,7 @@ export default function App() {
       {more && !loading && <div className="load-more" ref={sentinel} aria-live="polite">{loadingMore ? 'Loading…' : ''}</div>}
       </>}
     </main>
+    {duplicatesOpen && ready && <DuplicateReview key={root} root={root} onClose={() => setDuplicatesOpen(false)} onRefresh={refreshStatus} />}
     {panel === 'filters' && <FilterPanel filters={filters} anchor={anchor('filters')} onApply={setFilters} onClose={() => setPanel(null)} />}
     {panel === 'library' && status?.library && <LibraryPanel status={status} scanLeft={scanLeft} searchLeft={searchLeft} onSetUp={setUpSearch} shown={filtered && !searching && !loading ? total : null} narrowed={filtered || searching} anchor={anchor('library')} onClose={() => setPanel(null)} onRefresh={refreshStatus} />}
     {panel === 'folder' && status && <FolderPanel status={status} anchor={anchor('folder')} onOpened={applyStatus} onClose={() => setPanel(null)} />}
