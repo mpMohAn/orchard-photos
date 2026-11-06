@@ -285,6 +285,8 @@ export function SearchMenu({ mode, search, model, anchor, onMode, onSetUp, onUpl
         <button className="text-button menu-item" aria-pressed={false} aria-describedby="appearance-note" disabled={busy} onClick={() => { onSetUp(); onClose(); }}><Check />Appearance</button>
         <div className="menu-note" id="appearance-note">{busy ? 'Getting ready. Progress shows under the search bar.' : search?.state === 'error' ? 'The last try failed. Choose it to try again.' : `Sets up visual search: a ${megabytes(model.size)} MB download, once.`}</div>
       </>}
+      {option('hybrid', 'Combined search')}
+      <div className="menu-note">Combines local appearance matches with filename and camera metadata. Filename and metadata search works before visual indexing.</div>
       {option('name', 'File name')}
     </div>
     <hr className="menu-rule" />

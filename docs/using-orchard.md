@@ -173,6 +173,14 @@ Orchard keeps its cache, the search model and the list of recent folders in one 
 
 If you start Orchard with `--data-dir`, it's that folder instead. Run from a clone, the Python packages are separate, in `.venv` inside the clone, and take about 250 MB. The downloaded apps carry their own.
 
+### Combined search and saved searches
+
+**Combined search** in Search options combines local appearance results with filename and camera matches. Exact filename phrases receive a small additional boost. The ranking uses the existing model thresholds and heuristic metadata bonuses. It has not been evaluated as a general accuracy improvement on personal photo libraries.
+
+Use explicit operators alongside ordinary descriptions. Examples include `sunset year:2020`, `camera:"Canon EOS" type:jpg`, `from:2020-01-01 to:2020-12-31`, `name:"beach sunset.jpg"`, and `folder:trips`. Date ranges are inclusive and use the viewer's timezone. Query filters narrow the existing folder/type/date controls. Metadata-only queries work before visual indexing.
+
+Open **Search tools** after typing part of a filename, `camera:` value, or year. Suggestions come from the current catalog. Saved searches retain the query, search mode, filters, and order for that workspace. Give the search a name and choose **Save search**. Select its name to restore it or its remove button to remove it. Each workspace permits 100 named searches. Image uploads and image-reference searches are excluded from text-search bookmarks.
+
 ### Duplicate review
 
 Open **Duplicates** in the sidebar. **Exact copies** lists files with identical indexed content hashes. **Similar photos** shows visually related images after indexing and grouping. Compare the previews, dimensions, filenames, and edits before selecting files.

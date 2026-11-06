@@ -385,3 +385,20 @@ main[data-timeline] .gallery { margin-right: calc(var(--page) + var(--timeline))
   .duplicate-footer { padding: var(--s3) var(--s4); flex-wrap: wrap; }
   .duplicate-review .icon-button, .duplicate-review .text-button { min-height: var(--touch-control); }
 }
+
+.search-tools { position: relative; }
+.search-tools > summary { cursor: pointer; list-style: none; }
+.search-tools > summary::-webkit-details-marker { display: none; }
+.search-tools-body { position: absolute; z-index: 9; top: calc(100% + var(--s2)); right: 0; width: var(--panel-width); max-height: 65dvh; overflow: auto; padding: var(--s4); background: var(--surface); border: 1px solid var(--line); border-radius: var(--surface-radius); box-shadow: var(--shadow); }
+.search-tools-body h2 { font: inherit; font-weight: 500; margin: 0 0 var(--s2); }
+.search-tools-body h2:not(:first-child) { margin-top: var(--s6); }
+.search-tools-body p { margin: var(--s2) 0; }
+.search-tools-body ul { padding: 0; margin: var(--s2) 0; list-style: none; }
+.search-tools-body li { display: flex; align-items: center; min-width: 0; }
+.search-tools-body li > .text-button { flex: 1; min-width: 0; height: auto; min-height: var(--touch-control); justify-content: flex-start; text-align: left; overflow-wrap: anywhere; white-space: normal; }
+.search-tools-body .search-suggestions .text-button { justify-content: space-between; }
+.search-tools-body form { display: grid; gap: var(--s2); margin-top: var(--s4); }
+.search-tools-body input { min-width: 0; width: 100%; padding: var(--s2); border: 1px solid var(--line); border-radius: var(--control-radius); background: var(--bg); }
+@media (max-width: 720px) {
+  .search-tools-body { position: fixed; top: var(--search-tools-top, var(--s20)); left: var(--s4); right: var(--s4); width: auto; max-height: min(60dvh, calc(100dvh - var(--search-tools-top, var(--s20)) - var(--s4))); }
+}

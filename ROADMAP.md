@@ -90,7 +90,9 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Deliverable:** Better photo discovery without uploading personal photos.
 
-**Current status:** Not delivered. Existing SigLIP semantic search and image-to-image matching are baseline functionality.
+**Current status:** Implemented for review on `feature/search-distribution`. Combined search merges the existing thresholded semantic candidates with filename/camera matches and bounded metadata bonuses. Explicit date, year, camera, file type, filename/path, and folder operators narrow the current filters. Search tools provides catalog-derived suggestions and up to 100 named searches per workspace, retaining mode, filters, and order. No cloud dependency was added. Face/person identification remains a separate privacy decision.
+
+**Validation and remaining acceptance:** The 218-test regression suite, frontend build, static checks, and browser smoke passed locally. Generated-data tests cover parsing, literal filenames, stable combined ranking, saved-search persistence, and UI restore/remove flows. A six-image, two-folder offline real-model check passed combined description search, metadata filters, and image matching. The ranking bonuses are heuristic. Representative-library relevance evaluation remains pending.
 
 ## Phase 6 — Distribution
 
@@ -102,11 +104,13 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Deliverable:** A tested, distributable Intel Mac application with a safe upgrade path.
 
-**Current status:** Partly implemented. An isolated Intel DMG was built and its runtime, signature, toolkit, and visual-search smoke behavior were checked locally. Intel release-workflow coverage exists. These checks do not establish fresh-install, published-release, or upgrade/rollback acceptance.
+**Current status:** Distribution implementation is ready for review on `feature/search-distribution`. The Intel builder produces an ad hoc signed, self-contained DMG, a SHA-256 sidecar, and a source/runtime manifest. Release automation retains native x86_64 coverage and adds a temporary fresh-setup/upgrade/rollback rehearsal with archived reports. A local cached-package build validates requirement pins and native architectures before reuse.
+
+**Validation and remaining acceptance:** The final 66 MB Intel DMG passed signature, checksum, source-manifest, bundled Python 3.13.16, ONNX Runtime 1.23.2, and toolkit checks. Packaged combined-text and uploaded-image queries passed with real offline models. Fresh-home setup and upgrade/rollback against the older review bundle preserved catalog identities, two embeddings, saved searches, indexing settings, and generated originals. [Artifact evidence](docs/benchmarks/2026-11-06/phase6-artifact.json) and [distribution rehearsal](docs/benchmarks/2026-11-06/phase6-distribution.json) record the results. This tests isolated HOME/data and temporary installation paths on this Mac. Fresh physical-Mac, Gatekeeper, native privacy, published-release, and user-approved replacement acceptance remain pending.
 
 ## Execution and safety rules
 
-1. Continue from this roadmap. Phase 4 duplicate management has a reviewable implementation with native Trash acceptance pending. The next product-development phase is Phase 5 search improvements, followed by Phase 6 distribution. Keep the remaining acceptance items from earlier phases visible.
+1. Continue from this roadmap. Phases 5 and 6 now have reviewable implementations. Prepare the combined review and finish the listed acceptance work before release. Keep earlier gaps, including optional launch-at-login and native Trash/permission acceptance, visible.
 2. Preserve the existing architecture and functionality. Make targeted changes rather than an unsolicited rewrite or broad code reorganization.
 3. Keep the Intel ONNX Runtime 1.23.2 compatibility change until a replacement is explicitly justified and validated with both pinned image and text models. Verify other platforms when dependency changes affect them.
 4. Work on development branches with isolated test builds/data. Do not replace or modify the user's working Orchard installation automatically.
@@ -118,10 +122,10 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 ## Current execution order
 
-1. Review Phase 4 duplicate management and complete isolated native Trash/recovery acceptance when authorized.
-2. Phase 5 local search is the next implementation phase.
-3. Phase 6 distribution follows feature validation.
-4. Track remaining Phase 1–3 manual acceptance alongside development. Representative photo access, native permission tests, merge and installation require their applicable authorization.
+1. Review the Phase 5 search implementation and Phase 6 Intel DMG, manifests, checksums, and test reports.
+2. Complete remaining representative-library and native desktop acceptance, including Trash recovery and permission prompts, with the applicable authorization.
+3. Resolve the earlier optional launch-at-login gap before calling the original plan fully complete.
+4. Approve merge, installation/replacement, and release publication separately.
 
 ## Progress summary
 
@@ -131,7 +135,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 | 2. Intel performance | Baseline, controls, and generated 10,000-image scanner/browser checks verified; representative-library acceptance remains |
 | 3. Modern photo-management UI | Sorting, previews and combined-folder browsing implemented for review; representative-library/native acceptance remains |
 | 4. Duplicate management | Review/confirmation/journal implemented; native Trash and representative-library acceptance pending |
-| 5. Smarter local search | Not delivered |
-| 6. Distribution | Packaging groundwork completed; release acceptance remains |
+| 5. Smarter local search | Combined ranking, metadata filters, suggestions and saved searches implemented for review; representative relevance evaluation pending |
+| 6. Distribution | Final Intel review DMG and isolated setup/upgrade/rollback validated; fresh physical-Mac/Gatekeeper and release acceptance remain |
 
 Update this file as evidence changes. Scope changes must be explicitly approved by the user and recorded here; do not silently replace this plan with a different one.
