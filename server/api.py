@@ -450,6 +450,26 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(self.app.current().searches.suggestions(params.get('q', '')))
             elif route == ('/api/searches', False):
                 self.json(self.app.current().searches.list())
+            elif route == ('/api/trash/review', True):
+                with self.app._lock:
+                    self.json(self.app.current().duplicates.plan_files(self.form()))
+            elif route == ('/api/trash/confirm', True):
+                with self.app._lock:
+                    self.json(self.app.current().duplicates.execute(self.form()))
+            elif route == ('/api/folder/reveal', True):
+                library = self.app.current()
+                if library.photos:
+                    raise ValueError('Use Show in Photos for an Apple Photos image.')
+                folder = self.form().get('folder', '')
+                if not isinstance(folder, str) or Path(folder).is_absolute() or '..' in Path(folder).parts:
+                    raise ValueError('Choose a folder from this workspace.')
+                roots = getattr(library.scanner.source, 'roots', {})
+                path = roots[folder] if folder in roots else library.scanner.source.file(folder) if folder else library.folder
+                path = path.resolve(strict=True)
+                if not path.is_dir() or not any(path.is_relative_to(root) for root in library.roots):
+                    raise ValueError('Choose a folder from this workspace.')
+                reveal(path)
+                self.json({'revealed': True})
             elif route == ('/api/searches', True):
                 with self.app._lock:
                     self.json(self.app.current().searches.update(self.form()))

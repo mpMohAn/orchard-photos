@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, Folder, FolderPlus, Images } from 'lucide-react';
+import { Copy, Folder, FolderPlus, Images, ChartScatter, Search } from 'lucide-react';
 import { Lockup } from './Logo';
 import WorkspaceFolders from './WorkspaceFolders';
 import { IndexingSettings } from './Panels';
@@ -8,9 +8,10 @@ import { searchWork } from './Activity';
 import { post, request, type Facets, type Status } from './types';
 
 /** Navigation scopes the existing library. Switching libraries still opens one at a time. */
-export default function LibrarySidebar({ status, folder, open, onFolder, onAll, onChoose, onOpened, onRefresh, onDuplicates }: {
+export default function LibrarySidebar({ status, folder, open, onFolder, onAll, onChoose, onOpened, onRefresh, onDuplicates, exploring, onExplore, onSearch }: {
   status: Status; folder: string; open: boolean; onFolder: (path: string) => void; onAll: () => void;
   onChoose: () => void; onOpened: (status: Status) => void; onRefresh: () => void; onDuplicates: () => void;
+  exploring: boolean; onExplore: () => void; onSearch: () => void;
 }) {
   const [facets, setFacets] = useState<Facets | null>(null);
   const [error, setError] = useState('');
@@ -38,7 +39,9 @@ export default function LibrarySidebar({ status, folder, open, onFolder, onAll, 
     <button className="sidebar-brand" aria-label="Orchard, show every image" onClick={onAll}><Lockup /></button>
     <nav className="sidebar-navigation" aria-label="Photo libraries">
       <p className="sidebar-label">Library</p>
-      <button className="sidebar-row" aria-current={!folder ? 'page' : undefined} onClick={onAll}><Images /><span>All photos</span><span className="sidebar-count">{library.counts.images.toLocaleString()}</span></button>
+      <button className="sidebar-row" aria-current={!folder && !exploring ? 'page' : undefined} onClick={onAll}><Images /><span>All photos</span><span className="sidebar-count">{library.counts.images.toLocaleString()}</span></button>
+      <button className="sidebar-row" onClick={onSearch}><Search /><span>Visual search</span></button>
+      <button className="sidebar-row" aria-current={exploring ? 'page' : undefined} onClick={onExplore}><ChartScatter /><span>Visual Explore</span></button>
       <button className="sidebar-row" onClick={onDuplicates}><Copy /><span>Duplicates</span></button>
       <WorkspaceFolders status={status} onOpened={onOpened} onFolder={onFolder} />
       <div className="sidebar-section"><p className="sidebar-label">Folders</p><button className="icon-button" aria-label="Choose library" onClick={onChoose}><FolderPlus /></button></div>
@@ -55,7 +58,7 @@ export default function LibrarySidebar({ status, folder, open, onFolder, onAll, 
       <p className="indexing-state" aria-live="polite">{searchLabel}</p>
       {work && !work.error && <><Progress value={work.value} label="Visual search progress" /><p className="sidebar-note numbers">{work.detail}</p></>}
       {library.scan.state === 'scanning' && <p className="sidebar-note">Scanning photo folders…</p>}
-      <IndexingSettings compact onRefresh={onRefresh} /><p className="sidebar-note">Pause takes effect after the current batch. CPU changes apply on restart.</p>
+      <details className="activity-settings"><summary>Indexing controls</summary><IndexingSettings compact onRefresh={onRefresh} /><p className="sidebar-note">Pause takes effect after the current batch. CPU changes apply on restart.</p></details>
     </div>
   </aside>;
 }

@@ -143,6 +143,35 @@ class Duplicates:
                 db.execute('DELETE FROM files WHERE path=? AND image_id=?', (removed['path'], removed['id']))
                 db.execute('DELETE FROM images WHERE id NOT IN (SELECT image_id FROM files WHERE image_id IS NOT NULL)')
 
+    def plan_files(self, values):
+        """Review explicitly selected originals, or every indexed file in a folder. No keeper is required."""
+        self._writable()
+        if not isinstance(values, dict) or set(values) not in ({'paths'}, {'folder'}):
+            raise ValueError('Choose files or one folder to review.')
+        with self.lock, self.library.scan_lock:
+            with connect(self.library.directory) as db:
+                if 'folder' in values:
+                    folder = values['folder']
+                    if not isinstance(folder, str):
+                        raise ValueError('Choose a folder.')
+                    where, parameters = self.library.filters({'folder': folder})
+                    rows = db.execute('SELECT i.id,f.path FROM files f JOIN images i ON i.id=f.image_id WHERE ' + ' AND '.join(where) + ' ORDER BY f.path LIMIT 5001', parameters).fetchall()
+                else:
+                    paths = values['paths']
+                    if not isinstance(paths, list) or not paths or len(paths) > 5000 or any(not isinstance(path, str) for path in paths) or len(set(paths)) != len(paths):
+                        raise ValueError('Choose up to 5,000 distinct files per review.')
+                    rows = db.execute('SELECT image_id,path FROM files WHERE image_id IS NOT NULL AND path IN (' + ','.join('?' for _ in paths) + ') ORDER BY path', paths).fetchall()
+                    if len(rows) != len(paths):
+                        raise ValueError('The selection changed. Refresh and review it again.')
+            if not rows or len(rows) > 5000:
+                raise ValueError('Choose between 1 and 5,000 indexed files per review. Use a smaller subfolder if needed.')
+            moving = [self._inspect(image_id, path) for image_id, path in rows]
+            token = secrets.token_hex(32)
+            payload = {'kind': 'selected', 'group': '', 'files': [{**file, 'state': 'pending'} for file in moving], 'kept': []}
+            with connect(self.library.directory) as db:
+                db.execute('INSERT INTO duplicate_reviews VALUES (?,?,?,?)', (token, time.time(), 'planned', json.dumps(payload)))
+        return {'token': token, 'files': moving, 'bytes': sum(file['size'] for file in moving), 'expiresIn': PLAN_SECONDS}
+
     def _verify(self, file):
         current = self._inspect(file['id'], file['path'])
         if current['fingerprint'] != file['fingerprint'] or current['original'] != file['original']:

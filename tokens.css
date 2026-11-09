@@ -1,5 +1,9 @@
 :root {
   --sidebar-width: 248px;
+  --nav-active: #dce8fb;
+  --nav-ink: #174ea6;
+  --canvas: #f1f4f9;
+  --backdrop: #0008;
   --touch-control: 44px;
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
   font-size: var(--body); line-height: 1.5; font-weight: 400;
@@ -12,7 +16,7 @@
   --radius: 4px; --control-radius: 8px; --surface-radius: 12px; --pill: 100px;
   /* Two control heights: one nested inside another control, one for everything else. */
   --control: 40px; --control-nested: 32px; --motion: 180ms; --motion-slow: 320ms; --ease: cubic-bezier(.2,.7,.2,1); --shadow: 0 8px 40px #00000014;
-  --page: 32px; --gap: 8px; --timeline: 72px; --search-width: 400px; --search-height: var(--s12); --search-inset: var(--s2); --panel-width: 360px; --detail-width: 300px; --empty-height: 55vh; --icon: 18px;
+  --page: 32px; --gap: 4px; --timeline: 56px; --search-width: 600px; --search-height: var(--s12); --search-inset: var(--s2); --panel-width: 360px; --detail-width: 300px; --empty-height: 55vh; --icon: 18px;
   color: var(--ink); background: var(--bg); color-scheme: light;
 }
 :root[data-theme='dark'] { --bg: #171816; --surface: #21221f; --soft: #292a26; --ink: #ebebe5; --muted: #a6a89e; --line: #44453e; --focus: #b1bea5; --danger: #ef9c88; --shadow: 0 8px 40px #00000040; color-scheme: dark; }

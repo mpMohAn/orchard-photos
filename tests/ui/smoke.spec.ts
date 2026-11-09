@@ -5,6 +5,8 @@ import { checkWorkspace } from './workspace';
 import { checkWorkspaceFolders } from './workspace-folders';
 import { checkDuplicates } from './duplicates';
 import { checkSearches } from './searches';
+import { checkPhotoActions } from './photo-actions';
+import { checkExplorePerformance } from './explore';
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
@@ -76,9 +78,9 @@ test('opens a folder and browses, filters, maps and searches it', async ({ page 
   });
 
   await test.step('the map offers to set up visual search, since there is no model', async () => {
-    await page.getByRole('button', { name: 'Map', exact: true }).click();
+    await page.getByRole('button', { name: 'Visual Explore', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Your folder, laid out by look' })).toBeVisible();
-    await page.getByRole('button', { name: 'Grid', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to photos', exact: true }).click();
     await expect(pictures).toHaveCount(FIXTURE.images);
   });
 
@@ -90,9 +92,9 @@ test('opens a folder and browses, filters, maps and searches it', async ({ page 
     await expect(pictures).toHaveCount(1);
     await expect(pictures.first()).toHaveAccessibleName('Open beach.png');
     // The map counts the same file-name matches it lights.
-    await page.getByRole('button', { name: 'Map', exact: true }).click();
+    await page.getByRole('button', { name: 'Visual Explore', exact: true }).click();
     await expect(meta).toHaveText(plural(1, 'match', 'matches'));
-    await page.getByRole('button', { name: 'Grid', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to photos', exact: true }).click();
     await page.getByRole('button', { name: 'Clear search' }).click();
     await expect(pictures).toHaveCount(FIXTURE.images);
   });
@@ -162,15 +164,17 @@ test('opens a folder and browses, filters, maps and searches it', async ({ page 
     await expect(viewer).toBeHidden();
     await expect(box).toBeFocused();
 
-    await page.getByRole('button', { name: 'Map', exact: true }).click();
+    await page.getByRole('button', { name: 'Visual Explore', exact: true }).click();
     await page.keyboard.press('/');
     await expect(box).toBeFocused();
-    await page.getByRole('button', { name: 'Grid', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to photos', exact: true }).click();
   });
   await test.step('metadata queries, indexed suggestions and saved searches', async () => {
     await checkSearches(page);
   });
   await test.step('duplicate classification, comparison and explicit confirmation', async () => {
+    await checkPhotoActions(page);
+    await checkExplorePerformance(page);
     await checkDuplicates(page);
   });
 });

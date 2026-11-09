@@ -43,10 +43,10 @@ export default function SearchTools({ root, query, mode, filters, sort, canSave,
   };
   const close = () => { if (details.current) details.current.open = false; };
   return <details ref={details} className="search-tools" onToggle={event => { setOpen(event.currentTarget.open); event.currentTarget.style.setProperty('--search-tools-top', `${event.currentTarget.getBoundingClientRect().bottom + 8}px`); }}>
-    <summary className="text-button secondary"><Bookmark />Search tools</summary>
+    <summary className="text-button"><Bookmark />Saved searches</summary>
     <section className="search-tools-body" aria-label="Suggestions and saved searches">
       <h2>Search suggestions</h2>
-      <p className="muted">Suggestions come from this workspace. Try <code>year:2020</code>, <code>type:png</code>, or <code>camera:"Canon"</code>.</p>
+      <p className="muted">Use the main search bar. Suggestions come from this workspace. Try <code>year:2020</code>, <code>type:png</code>, or <code>camera:"Canon"</code>.</p>
       {suggestions.length ? <ul className="search-suggestions">{suggestions.map(item => <li key={item.query}><button className="text-button" onClick={() => { onSearch(item.query); close(); }}>{item.label}<span className="muted">{item.kind}</span></button></li>)}</ul> : <p className="muted">Type part of a filename, camera, or year in the search bar.</p>}
       <h2>Saved searches</h2>
       {saved.length ? <ul className="saved-searches">{saved.map(item => <li key={item.id}><button className="text-button" onClick={() => { onRestore(item); close(); }}>{item.name}</button><button className="icon-button" aria-label={`Remove saved search ${item.name}`} disabled={busy} onClick={() => void update({ action: 'remove', id: item.id })}><X /></button></li>)}</ul> : <p className="muted">Save a query and its filters for this workspace.</p>}

@@ -261,6 +261,24 @@ class HandlerTests(unittest.TestCase):
         handler.server.app.login.update.assert_called_once_with({'enabled': True})
         handler.json.assert_called_once_with(handler.server.app.login.update.return_value)
 
+    def test_folder_reveal_restricts_paths_to_the_current_library(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / 'trips').mkdir()
+            library = SimpleNamespace(photos=False, folder=root, roots=(root,), scanner=SimpleNamespace(source=SimpleNamespace(file=lambda folder: root / folder)))
+            handler = self.dispatch('/api/status', JSON)
+            handler.path = '/api/folder/reveal'
+            handler.server.app.current.return_value = library
+            handler.form = Mock(return_value={'folder': 'trips'})
+            with patch('server.api.reveal') as reveal:
+                handler.dispatch(True)
+                reveal.assert_called_once_with(root / 'trips')
+                reveal.reset_mock()
+                handler.form.return_value = {'folder': '../outside'}
+                handler.dispatch(True)
+                reveal.assert_not_called()
+            self.assertEqual(handler.json.call_args.args[1], 400)
+
     def test_indexing_controls_validate_and_persist_without_downloading_models(self):
         with tempfile.TemporaryDirectory() as folder:
             app = App(Path(folder))

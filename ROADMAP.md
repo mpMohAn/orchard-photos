@@ -6,6 +6,16 @@ Source: [Original planning conversation](https://chatgpt.com/share/6ae210f5-0158
 
 Status updated on 2026-11-09. Implementation, automated validation, manual acceptance, and release are tracked separately below.
 
+## Approved review update — 2026-11-09
+
+The user asked for a Google Photos-inspired layout, clearer visual search, useful selection/Trash and Finder actions, and a fix for the slow similarity view. The similarity view is retained and renamed **Visual Explore**. It is not a geographic map. Existing architecture, local processing, and compatibility pins are retained.
+
+The review implementation adds prominent sidebar search/explore navigation and search-by-image access, saved-search naming, compact indexing controls, tighter photo spacing, and selection/folder Trash review. Folder-wide review lists all indexed originals in the folder/subfolders, independently of loaded thumbnails, up to 5,000 files per explicit confirmation. The native journaled Trash workflow is extended; no automatic or permanent deletion is added. Personal-photo moves and installation changes were not performed.
+
+The renderer no longer continuously redraws while thumbnails are loading. Retina canvas resolution is capped at 1.5×, atlas sheets decode at most two at a time, and aborted view loads release their bitmaps. A 3,000-point synthetic browser regression records zero idle draw calls over 300 ms with held thumbnail requests. This does not establish real-library frame-rate or first-layout performance. First layout still computes in the background.
+
+Validation passed 100 focused Python tests (API, duplicates, library, searches, layout), frontend lint/type checks and build, and serial browser smoke including light/dark views and 320/375/414/768 px layouts. Ruff is not installed in this environment. Native Trash/Put Back and representative-library performance acceptance remain pending.
+
 ## Product goal
 
 Build a polished, dependable Intel Mac photo application by extending Orchard's existing architecture, improving large-library performance, modernizing photo-management interactions, adding safe duplicate review and cleanup, and improving local search.
@@ -118,7 +128,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 2. Preserve the existing architecture and functionality. Make targeted changes rather than an unsolicited rewrite or broad code reorganization.
 3. Keep the Intel ONNX Runtime 1.23.2 compatibility change until a replacement is explicitly justified and validated with both pinned image and text models. Verify other platforms when dependency changes affect them.
 4. Work on development branches with isolated test builds/data. Do not replace or modify the user's working Orchard installation automatically.
-5. Originals remain read-only by default. Phase 4's explicit, confirmed Trash workflow is the planned exception; it does not authorize background deletion or permanent deletion.
+5. Originals remain read-only by default. The explicit, confirmed duplicate/selection/folder Trash workflow is the approved exception; it does not authorize background deletion or permanent deletion.
 6. Merge, installation/replacement, release publication, personal-photo access, and consequential file actions require the relevant explicit user authorization. Saving this roadmap does not authorize those actions.
 7. Keep development automation separate from the photo app. Use the existing local Codex/ChatGPT setup within plan limits; do not introduce paid APIs, paid runners, or extra-cost services without approval. Batch routine implementation, checks, and reporting to minimize manual handoffs.
 8. Maintain progress against concrete requirements and evidence. Separate implemented, tested, shipped, and unverified work. Do not invent an overall completion percentage or count existing features as newly delivered.

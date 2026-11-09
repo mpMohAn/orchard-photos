@@ -48,7 +48,7 @@ export default function Gallery({ items, sections, onOpen, ref, selecting = fals
     return () => { removeEventListener('scroll', schedule); removeEventListener('resize', schedule); cancelAnimationFrame(frame); };
   }, []);
   // Matches --gap in styles.css, which the loading skeleton uses.
-  const gap = width < 560 ? 4 : 8;
+  const gap = 4;
   const target = width < 560 ? ROW * .55 : width < 900 ? ROW * .8 : ROW;
   const { positions, headings, height } = useMemo(() => {
     const positions: React.CSSProperties[] = [];

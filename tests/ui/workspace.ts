@@ -28,6 +28,7 @@ export async function checkWorkspace(page: Page) {
   await tiles.first().click();
   await expect(page.getByRole('dialog', { name: 'Image viewer' })).toBeVisible();
   await page.keyboard.press('Escape');
+  await sidebar.locator('.activity-settings > summary').click();
   const controls = sidebar.getByRole('region', { name: 'Workspace indexing controls' });
   await controls.getByRole('button', { name: 'Pause indexing', exact: true }).click();
   await page.getByRole('button', { name: /^Info/ }).click();
