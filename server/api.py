@@ -24,6 +24,7 @@ import webbrowser
 from server import photos
 from server.diagnostics import LAST_ERROR, report
 from server.indexing import IndexingControls
+from server.login import LoginLaunch
 from server.library import IMAGE_ID, Library
 from server.semantic import Encoder
 from server.updates import Updates
@@ -79,6 +80,7 @@ class App:
         self.data_dir = Path(data_dir).resolve()
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.indexing = IndexingControls(self.data_dir / 'indexing.json')
+        self.login = LoginLaunch(self.data_dir)
         self.encoder = Encoder(self.data_dir / 'models')
         self.encoder.controls = self.indexing
         self.encoder.cpu_threads = self.indexing.threads
@@ -400,6 +402,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.json({'report': report(self.app, f'{APP["name"]} {APP["version"]}')})
             elif route == ('/api/updates', False):
                 self.json(self.app.updates.status())
+            elif route == ('/api/login', False):
+                self.json(self.app.login.status())
+            elif route == ('/api/login', True):
+                self.json(self.app.login.update(self.form()))
             elif route == ('/api/updates', True):
                 self.app.updates.turn(self.form().get('enabled') is True)
                 self.json(self.app.updates.status())

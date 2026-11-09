@@ -252,6 +252,15 @@ class HandlerTests(unittest.TestCase):
                 if window:
                     window.bring_forward.assert_called_once_with()
 
+    def test_login_routes_return_status_and_apply_explicit_choice(self):
+        handler = self.dispatch('/api/login', JSON)
+        handler.server.app.login.status.assert_called_once_with()
+        handler.json.assert_called_once_with(handler.server.app.login.status.return_value)
+        body = b'{"enabled": true}'
+        handler = self.dispatch('/api/login', {**JSON, 'Content-Length': str(len(body))}, True, body)
+        handler.server.app.login.update.assert_called_once_with({'enabled': True})
+        handler.json.assert_called_once_with(handler.server.app.login.update.return_value)
+
     def test_indexing_controls_validate_and_persist_without_downloading_models(self):
         with tempfile.TemporaryDirectory() as folder:
             app = App(Path(folder))

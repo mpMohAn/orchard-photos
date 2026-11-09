@@ -30,6 +30,8 @@ Orchard runs in WSL with its own window, through WSLg. Some things differ from L
 
 The downloaded Mac app needs nothing more. When you run Orchard from a clone, `scripts/install-app` installs `~/Applications/Orchard.app`, which opens this clone's window from the Dock or Spotlight. It compiles a small launcher with clang, so it needs the Xcode command line tools, which `xcode-select --install` installs. The first start sets things up, which takes about a minute. If the clone is in your Desktop or Documents folder, macOS asks whether Orchard may open it, and may ask again after you reinstall the app. If Orchard can't start, the app shows the end of its log, `~/Library/Logs/Orchard.log`.
 
+In Info, **Launch Orchard at login** optionally opens this Mac app at your next login, using its current data folder. It is off by default and available only from an app bundle. Move the app to a permanent location first. Turning the setting off removes its login configuration without quitting Orchard. Turn it off before moving or removing the app, then enable it from the new location if wanted. Each app location and data folder has its own setting. macOS may also require allowing the item in System Settings → General → Login Items. This setting does not restart Orchard after you quit it.
+
 The app finds Python the way your terminal did when you ran `scripts/install-app`, so run it again if you install Python somewhere new. With Python from Homebrew or python.org, the window shows in the Dock as Orchard. With other Pythons, like pyenv's, it shows as Python.
 
 ## Browsing

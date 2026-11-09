@@ -4,7 +4,7 @@ This is the agreed scope for improving both the native Intel macOS application a
 
 Source: [Original planning conversation](https://chatgpt.com/share/6ae210f5-0158-83e8-bef2-a447f7b37c65), including the original-plan screenshot supplied by the user.
 
-Status recorded on 2026-11-06. Implementation, automated validation, manual acceptance, and release are tracked separately below.
+Status updated on 2026-11-09. Implementation, automated validation, manual acceptance, and release are tracked separately below.
 
 ## Product goal
 
@@ -29,7 +29,9 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Current status:** Substantially implemented in PR #2. Intel packaging, lifecycle safeguards, diagnostics, and CI were added. CI passed on Intel Mac, Apple Silicon, Windows, and Linux, alongside lint, web, and UI checks. Isolated desktop tests covered Finder launch, the folder picker, Cmd+Q, window close, user-performed Dock Quit and sleep/wake, restored library identity/counts, and unchanged generated originals.
 
-**Remaining limitations:** Fresh macOS privacy-prompt denial and Photos permission/integration were not verified. Dock cold launch/icon count was not verified. Optional launch-at-login has not been delivered. Desktop testing used a configuration-isolated review bundle, not an untouched release DMG. Merge, installation, and release are separate approval steps.
+**Review follow-up:** Optional launch-at-login is implemented in Info, off by default. It writes a per-bundle/per-data-directory user LaunchAgent only when enabled, for the next graphical login. Disabling removes that agent. Temporary mounted/translocated bundles cannot enable it. Tests use temporary homes and simulated browser responses; the user's login settings were not changed. Real logout/login acceptance remains pending.
+
+**Remaining limitations:** Fresh macOS privacy-prompt denial and Photos permission/integration were not verified. Dock cold launch/icon count was not verified. Desktop testing used a configuration-isolated review bundle, not an untouched release DMG. Merge, installation, and release are separate approval steps.
 
 ## Phase 2 — Intel performance
 
@@ -94,6 +96,8 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Validation and remaining acceptance:** The 218-test regression suite, frontend build, static checks, and browser smoke passed locally. Generated-data tests cover parsing, literal filenames, stable combined ranking, saved-search persistence, and UI restore/remove flows. A six-image, two-folder offline real-model check passed combined description search, metadata filters, and image matching. The ranking bonuses are heuristic. Representative-library relevance evaluation remains pending.
 
+**2026-11-09 review fix:** Combined search now ranks all matching members before collapsing similar-photo groups. A regression test covers a matching non-cover image, competing semantic matches, and filename fallback. The follow-up passed 77 focused Python tests (search, login, API, duplicates, indexing, workspace), browser smoke, frontend lint/type checks, and the production build. Ruff is unavailable in the current environment; a fresh full-suite result is not claimed. The earlier Intel DMG predates these fixes and must be rebuilt before artifact acceptance.
+
 ## Phase 6 — Distribution
 
 - Produce a distributable Intel DMG.
@@ -110,7 +114,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 ## Execution and safety rules
 
-1. Continue from this roadmap. Phases 5 and 6 now have reviewable implementations. Prepare the combined review and finish the listed acceptance work before release. Keep earlier gaps, including optional launch-at-login and native Trash/permission acceptance, visible.
+1. Continue from this roadmap. Phases 5 and 6 now have reviewable implementations. Prepare the combined review and finish the listed acceptance work before release. Keep earlier gaps, including real login-launch and native Trash/permission acceptance, visible.
 2. Preserve the existing architecture and functionality. Make targeted changes rather than an unsolicited rewrite or broad code reorganization.
 3. Keep the Intel ONNX Runtime 1.23.2 compatibility change until a replacement is explicitly justified and validated with both pinned image and text models. Verify other platforms when dependency changes affect them.
 4. Work on development branches with isolated test builds/data. Do not replace or modify the user's working Orchard installation automatically.
@@ -124,7 +128,7 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 1. Review the Phase 5 search implementation and Phase 6 Intel DMG, manifests, checksums, and test reports.
 2. Complete remaining representative-library and native desktop acceptance, including Trash recovery and permission prompts, with the applicable authorization.
-3. Resolve the earlier optional launch-at-login gap before calling the original plan fully complete.
+3. Validate the optional launch-at-login setting with a real logout/login before calling the original plan fully complete.
 4. Approve merge, installation/replacement, and release publication separately.
 
 ## Progress summary

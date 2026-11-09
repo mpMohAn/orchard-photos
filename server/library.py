@@ -274,12 +274,12 @@ class Library:
         for word in query.split():
             lexical_where.append("(f.path LIKE ? ESCAPE '!' OR coalesce(i.camera,'') LIKE ? ESCAPE '!')")
             lexical_values += [like(word), like(word)]
-        lexical = {row['id']: row for row in self.tiles(lexical_where, lexical_values)}
+        lexical = {row['id']: row for row in self.tiles(lexical_where, lexical_values, collapse=False)}
         ranking = {}
         if self.semantic.status()['indexed']:
             self.require_search()
             ranking = dict(self.semantic.search(text=query))
-        candidates = {row['id']: row for row in self.tiles(where, values) if row['id'] in ranking}
+        candidates = {row['id']: row for row in self.tiles(where, values, collapse=False) if row['id'] in ranking}
         candidates.update(lexical)
         def score(row):
             bonus = .18 if row['id'] in lexical else 0

@@ -54,6 +54,19 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(self.library.searches.suggestions('beach')[0]['label'], 'beach sunset.jpg')
         self.assertEqual(self.library.searches.suggestions('x'), [])
 
+    def test_hybrid_ranks_group_members_before_collapsing(self):
+        cover, _, match = self.ids
+        with connect(self.library.directory) as db:
+            db.execute('INSERT INTO image_groups VALUES (?,?,?)', (cover, cover, 1.0))
+            db.execute('INSERT INTO image_groups VALUES (?,?,?)', (match, cover, .9))
+        self.library.semantic = SimpleNamespace(status=lambda: {'indexed': 3}, search=lambda **kwargs: [(match, .8)])
+        result = self.library.pictures({'q': 'snow', 'mode': 'hybrid'})
+        self.assertEqual([row['id'] for row in result['items']], [match])
+        self.library.semantic.search = lambda **kwargs: [(cover, .3), (match, .8)]
+        self.assertEqual([row['id'] for row in self.library.pictures({'q': 'snow', 'mode': 'hybrid'})['items']], [match])
+        self.library.semantic = SimpleNamespace(status=lambda: {'indexed': 0})
+        self.assertEqual(self.library.pictures({'q': 'mountain', 'mode': 'hybrid'})['items'][0]['id'], match)
+
     def test_saved_search_persists_and_removes_without_changing_index(self):
         values = {'action': 'save', 'name': 'Beach trips', 'query': 'beach year:2020', 'mode': 'hybrid', 'sort': 'newest', 'filters': self.filters}
         saved = self.library.searches.update(values)[0]
