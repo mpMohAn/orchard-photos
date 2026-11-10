@@ -21,7 +21,7 @@ export interface GalleryHandle {
 }
 
 /** The images in justified rows, each at its own shape. With `sections`, for date order, each month starts under its own heading. */
-export default function Gallery({ items, sections, onOpen, ref, selecting = false, marked, onToggle }: { items: Picture[]; sections: boolean; onOpen: (index: number) => void; ref?: React.Ref<GalleryHandle>; selecting?: boolean; marked?: Set<string>; onToggle?: (id: string) => void }) {
+export default function Gallery({ items, sections, onOpen, ref, selecting = false, marked, onToggle }: { items: Picture[]; sections: boolean; onOpen: (index: number) => void; ref?: React.Ref<GalleryHandle>; selecting?: boolean; marked?: Set<string>; onToggle?: (id: string, range?: boolean) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   // Visible band in gallery coordinates, snapped to STEP so scrolling re-renders only when it crosses a step.
@@ -116,13 +116,13 @@ export default function Gallery({ items, sections, onOpen, ref, selecting = fals
     })}
   </div>;
 }
-const Tile = memo(function Tile({ item, index, style, onOpen, selecting, marked, onToggle }: { item: Picture; index: number; style: React.CSSProperties; onOpen: (index: number) => void; selecting: boolean; marked: boolean; onToggle?: (id: string) => void }) {
+const Tile = memo(function Tile({ item, index, style, onOpen, selecting, marked, onToggle }: { item: Picture; index: number; style: React.CSSProperties; onOpen: (index: number) => void; selecting: boolean; marked: boolean; onToggle?: (id: string, range?: boolean) => void }) {
   const [failed, setFailed] = useState(false);
   const name = fileName(item.path);
   const label = item.members > 1 ? `Open ${name} and ${plural(item.members - 1, 'near-duplicate')}` : `Open ${name}`;
-  return <button className="picture" style={style} data-selected={marked || undefined} onClick={() => selecting ? onToggle?.(item.id) : onOpen(index)} aria-pressed={selecting ? marked : undefined} aria-label={selecting ? `Select ${name}` : label} title={item.path}>
+  return <div className="photo-tile" style={style}><button className="picture" data-selected={marked || undefined} onClick={event => selecting || event.shiftKey ? onToggle?.(item.id, event.shiftKey) : onOpen(index)} aria-pressed={selecting ? marked : undefined} aria-label={selecting ? `Select ${name}` : label} title={item.path}>
     {failed ? <span className="missing">Preview unavailable</span> : <img src={imageUrl(item.id)} alt={name} decoding="async" onDragStart={dragImage(item.id)} onError={() => setFailed(true)} />}
-    {selecting && <span className="selection-mark" aria-hidden="true">{marked && <Check />}</span>}
+
     {item.members > 1 && <span className="members" aria-hidden="true"><Layers />{item.members.toLocaleString()}</span>}
-  </button>;
+  </button><button className="photo-select" data-selecting={selecting || undefined} aria-label={`${marked ? 'Deselect' : 'Select'} ${name}`} aria-pressed={marked} onClick={event => onToggle?.(item.id, event.shiftKey)}><Check /></button></div>;
 });

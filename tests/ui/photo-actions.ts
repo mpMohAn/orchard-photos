@@ -24,7 +24,10 @@ export async function checkPhotoActions(page: Page) {
   await review.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByRole('button', { name: 'Done selecting', exact: true }).click();
   await page.locator('.folder-actions > summary').click();
-  await page.getByRole('button', { name: 'Review all photos in this folder for Trash', exact: true }).click();
+  await page.getByRole('button', { name: 'Select all photos in this folder', exact: true }).click();
+  await expect(review).not.toBeVisible();
+  await expect(page.getByRole('region', { name: 'Folder selection' })).toContainText('6 originals selected');
+  await page.getByRole('button', { name: 'Move selected to Trash', exact: true }).click();
   await expect(review.locator('li')).toHaveCount(6);
   await review.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.unroute('**/api/trash/confirm');

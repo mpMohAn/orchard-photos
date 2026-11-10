@@ -12,6 +12,13 @@ export async function checkWorkspace(page: Page) {
   await expect(page.getByRole('heading', { level: 1, name: 'trips', exact: true })).toBeVisible();
   await sidebar.getByRole('button', { name: /^All photos/ }).click();
   await expect(page.getByRole('button', { name: /^Open / })).toHaveCount(FIXTURE.images);
+  await page.locator('.photo-tile').first().hover();
+  await page.locator('.photo-select').first().click();
+  await expect(page.locator('.picture[aria-pressed="true"]')).toHaveCount(1);
+  await page.locator('.photo-select').nth(2).click({ modifiers: ['Shift'] });
+  await expect(page.locator('.picture[aria-pressed="true"]')).toHaveCount(3);
+  await page.screenshot({ path: 'test-results/selection-toolbar.png' });
+  await page.getByRole('button', { name: 'Done selecting', exact: true }).click();
   await page.getByRole('button', { name: 'Select', exact: true }).click();
   const tiles = page.locator('.picture');
   await tiles.first().click();

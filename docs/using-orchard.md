@@ -95,9 +95,9 @@ A search shows only real matches, closest first, so the count depends on what th
 
 ## Selecting and moving photos to Trash
 
-Choose **Select**, then click photos. **Select loaded** selects the tiles currently loaded; it does not silently include unloaded photos. **Trash selected** reviews the displayed original file for each selected tile. Other copies and other members of a similar-photo stack stay unless explicitly listed in the review.
+Use a thumbnail’s checkmark to select it without opening it, or choose **Select**. Shift-click another thumbnail/checkmark to select a range among loaded photos. A selected-count toolbar appears at the top. **Select loaded** selects the tiles currently loaded; it does not silently include unloaded photos. **Trash selected** reviews the displayed original file for each selected tile. Other copies and other members of a similar-photo stack stay unless explicitly listed in the review.
 
-The folder actions menu (•••) offers **Review all photos in this folder for Trash**. It includes every indexed original in that folder and its subfolders, including exact copies and files beyond the loaded gallery. It ignores search/type/date filters, so review the exact paths. The folder itself stays. Reviews support up to 5,000 files; use a smaller subfolder for a larger collection. Unindexed files are not included.
+The folder actions menu (•••) offers **Select all photos in this folder**. This first shows a selection count and highlights loaded members; no Trash confirmation opens until you choose **Move selected to Trash** or **Trash selected**. It includes every indexed original in that folder and its subfolders, including exact copies and files beyond the loaded gallery. It ignores search/type/date filters, so review the exact paths. The folder itself stays. Reviews support up to 5,000 files; use a smaller subfolder for a larger collection. Unindexed files are not included.
 
 Nothing moves until you review the paths, check the confirmation, and choose **Move to Trash**. Cleanup is available for ordinary folders on macOS. The same content checks, native Trash adapter, durable history, and partial-failure safeguards used by duplicate review apply. Recovery is through Put Back in macOS Trash or the recorded original path, followed by a rescan. **Show in Finder** reveals the currently browsed folder.
 

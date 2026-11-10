@@ -5,22 +5,35 @@ import { post, sizeLabel, type Picture } from './types';
 interface Plan { token: string; files: { id: string; path: string; original: string; size: number }[]; bytes: number }
 interface Outcome { state: string; moved: number; recovery: string; files: { path: string; state: string; trash?: string; error?: string }[] }
 
-export default function PhotoActions({ folder, items, marked, selecting, available, onChanged }: {
-  folder: string; items: Picture[]; marked: Set<string>; selecting: boolean; available: boolean; onChanged: () => void;
+export default function PhotoActions({ folder, items, marked, selecting, available, onChanged, onFolderSelection }: {
+  folder: string; items: Picture[]; marked: Set<string>; selecting: boolean; available: boolean; onChanged: () => void; onFolderSelection: (ids: string[]) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
+  const [folderSelection, setFolderSelection] = useState<Plan | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { if (plan || outcome) dialog.current?.showModal(); }, [plan, outcome]);
   const review = async (all: boolean) => {
+    if (!all && folderSelection) { setPlan(folderSelection); setFolderSelection(null); setConfirmed(false); return; }
     setBusy(true); setError(''); setConfirmed(false); setOutcome(null);
-    try { setPlan(await post<Plan>('/api/trash/review', all ? { folder } : { paths: items.filter(item => marked.has(item.id)).map(item => item.path) })); }
+    try {
+      const loaded = new Set(items.map(item => item.id));
+      if (!all && [...marked].some(id => !loaded.has(id))) throw new Error('Some selected photos are not loaded. Select the whole folder again, or clear the selection before choosing individual photos.');
+      const reviewed = await post<Plan>('/api/trash/review', all ? { folder } : { paths: items.filter(item => marked.has(item.id)).map(item => item.path) });
+      if (all) { setFolderSelection(reviewed); onFolderSelection(reviewed.files.map(file => file.id)); } else setPlan(reviewed);
+    }
     catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   };
+  useEffect(() => {
+    if (folderSelection) {
+      const ids = new Set(folderSelection.files.map(file => file.id));
+      if (ids.size !== marked.size || [...ids].some(id => !marked.has(id))) setFolderSelection(null);
+    }
+  }, [marked, folderSelection]);
   const close = () => { if (busy) return; dialog.current?.close(); setPlan(null); setOutcome(null); };
   const move = async () => {
     if (!plan || !confirmed) return;
@@ -37,7 +50,8 @@ export default function PhotoActions({ folder, items, marked, selecting, availab
   return <>
     <button className="text-button" onClick={() => void reveal()}><FolderOpen /><span>Show in Finder</span></button>
     {available && <>{selecting && <button className="text-button danger-action" disabled={busy || !marked.size} onClick={() => void review(false)}><Trash2 />Trash selected</button>}
-      <details className="folder-actions"><summary className="text-button" aria-label="Folder actions">•••</summary><button className="text-button danger-action" disabled={busy} onClick={() => void review(true)}>Review all photos in this folder for Trash</button></details></>}
+      <details className="folder-actions"><summary className="text-button" aria-label="Folder actions">•••</summary><button className="text-button danger-action" disabled={busy} onClick={() => void review(true)}>Select all photos in this folder</button></details></>}
+    {folderSelection && <div className="folder-selection-bar" role="region" aria-label="Folder selection"><strong>{folderSelection.files.length} originals selected in this folder and subfolders</strong><button className="text-button" onClick={() => { setFolderSelection(null); onFolderSelection([]); }}>Clear folder selection</button><button className="text-button danger-action" onClick={() => { setPlan(folderSelection); setFolderSelection(null); setConfirmed(false); }}>Move selected to Trash</button></div>}
     {error && !plan && !outcome && <p className="error-copy" role="alert">{error}</p>}
     <dialog ref={dialog} className="photo-trash-dialog" aria-label="Review photos for Trash" onCancel={event => { event.preventDefault(); close(); }}>
       <div className="trash-heading"><h2>{outcome ? 'Trash results' : 'Review photos for Trash'}</h2><button className="icon-button" aria-label="Close Trash review" disabled={busy} onClick={close}><X /></button></div>

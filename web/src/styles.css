@@ -445,3 +445,23 @@ html, body { overflow-x: clip; }
 .trash-file-list { max-height: 32dvh; overflow: auto; padding: var(--s3) var(--s6); background: var(--canvas); border-radius: var(--radius); }
 .trash-file-list li { padding: var(--s2) 0; overflow-wrap: anywhere; }
 @media (max-width: 720px) { .trash-buttons { flex-wrap: wrap; } .trash-buttons button { max-width: 100%; height: auto; min-height: var(--touch-control); } }
+
+/* Selection belongs to the photos; opening a photo remains a separate action. */
+.photo-tile { position: absolute; }
+.photo-tile > .picture { position: absolute; inset: 0; width: 100%; height: 100%; }
+.photo-select { position: absolute; left: var(--s2); top: var(--s2); z-index: 2; display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--pill); color: var(--surface); background: var(--backdrop); opacity: 0; }
+.photo-tile:hover .photo-select, .photo-select:focus-visible, .photo-select[data-selecting], .photo-select[aria-pressed='true'] { opacity: 1; }
+.photo-select[aria-pressed='true'] { background: var(--nav-ink); }
+.folder-selection-bar { position: fixed; z-index: 7; top: var(--s20); left: calc(var(--sidebar-width) + var(--s4)); right: var(--s4); padding: var(--s3); background: var(--nav-active); color: var(--nav-ink); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); border-radius: var(--surface-radius); }
+@media (hover: none) { .photo-select { opacity: 1; } }
+@media (max-width: 1000px) { .folder-selection-bar { left: var(--s4); } }
+
+.workspace[data-selecting] .selection-tools { position: fixed; inset: 0 0 auto var(--sidebar-width); z-index: 9; min-height: 86px; padding: var(--s4) var(--page); justify-content: flex-start; background: var(--nav-active); color: var(--nav-ink); border-bottom: 1px solid var(--line); }
+.workspace[data-selecting] .selection-tools > .search-tools, .workspace[data-selecting] .workspace-sort { display: none; }
+.workspace[data-selecting] .selection-tools > span { color: inherit; font-size: var(--title); margin-right: auto; }
+@media (max-width: 1000px) { .workspace[data-selecting] .selection-tools { left: 0; } }
+@media (max-width: 720px) { .workspace[data-selecting] .selection-tools { padding: var(--s3); } .workspace[data-selecting] .selection-tools > span { width: 100%; } .folder-selection-bar { top: 160px; } }
+
+.photo-select[aria-pressed='false'] { border: 2px solid var(--surface); }
+.photo-select[aria-pressed='false'] svg { opacity: 0; }
+.picture[data-selected] { box-shadow: inset 0 0 0 var(--s1) var(--nav-ink); }

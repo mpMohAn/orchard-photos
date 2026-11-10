@@ -153,3 +153,9 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 | 6. Distribution | Final Intel review DMG and isolated setup/upgrade/rollback validated; fresh physical-Mac/Gatekeeper and release acceptance remain |
 
 Update this file as evidence changes. Scope changes must be explicitly approved by the user and recorded here; do not silently replace this plan with a different one.
+
+## Review checkpoint — 2026-11-10
+
+The user approved a closer Google Photos browsing/selection flow and opt-in local People grouping. The selection pass adds thumbnail checkmarks, Shift-click ranges among loaded photos, a top selected-count toolbar, and visible folder-wide selection before Trash review. The previous “Review all photos in this folder for Trash” command has been replaced. Existing native Trash verification/journaling is retained.
+
+People grouping is approved but not implemented at this checkpoint. It requires detection, alignment, local face embeddings, editable groups/names, opt-in/pause/clear controls, licensing and Intel validation. Pet grouping, cloud backup/sharing, advanced AI edits, and Locked Folder are not implemented. No installed app or personal-photo data has been modified.
