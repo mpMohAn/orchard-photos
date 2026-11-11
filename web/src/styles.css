@@ -481,3 +481,31 @@ html, body { overflow-x: clip; }
 
 .photo-tile[data-small] .photo-select { width: 20px; height: 20px; left: 0; top: 0; }
 .photo-tile[data-small] .photo-select svg { width: 14px; height: 14px; }
+
+/* People collection follows the same photo-first workspace. */
+.people-page { width: 100%; min-width: 0; padding: var(--s6) var(--page); }
+.people-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s4); margin-bottom: var(--s8); }
+.people-heading h1 { font-size: 28px; font-weight: 500; margin: 0; letter-spacing: -.025em; }
+.people-progress { display: flex; align-items: center; flex-wrap: wrap; color: var(--muted); gap: var(--s2); }
+.people-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--s8) var(--s6); max-width: 1100px; }
+.person-card { display: flex; flex-direction: column; align-items: center; gap: var(--s2); min-width: 0; padding: var(--s3); border-radius: var(--surface-radius); }
+.person-card:hover { background: var(--soft); }
+.person-card img { width: 120px; height: 120px; object-fit: cover; border-radius: var(--pill); background: var(--soft); }
+.person-card strong { font-weight: 500; overflow-wrap: anywhere; }
+.person-card span { color: var(--muted); }
+.people-setup, .people-empty { max-width: 500px; margin: var(--s20) auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--s4); }
+.people-setup > svg, .people-empty > svg { width: var(--s12); height: var(--s12); color: var(--muted); }
+.people-setup h2, .people-empty h2, .people-setup p { margin: 0; }
+.people-edit { display: flex; flex-wrap: wrap; gap: var(--s6); margin-bottom: var(--s6); }
+.people-edit form, .people-merge { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.people-edit input, .people-edit select { min-width: 0; max-width: 100%; padding: var(--s3); border-radius: var(--control-radius); border: 1px solid var(--line); background: var(--surface); }
+.people-settings { margin-top: var(--s12); border-top: 1px solid var(--line); padding-top: var(--s4); }
+.people-settings summary, .face-corrections summary { cursor: pointer; padding: var(--s3) 0; }
+.face-corrections { margin-bottom: var(--s6); }
+.face-review-grid { display: flex; flex-wrap: wrap; gap: var(--s4); }
+.face-review-grid > div { display: flex; flex-direction: column; align-items: center; padding: var(--s3); background: var(--soft); border-radius: var(--surface-radius); }
+.face-review-grid img { width: var(--s20); height: var(--s20); object-fit: cover; border-radius: var(--pill); }
+@media (max-width: 480px) { .people-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); } .person-card img { width: 100px; height: 100px; } .people-heading h1 { font-size: var(--title); } }
+
+.people-heading > div { min-width: 0; }
+.people-heading h1 { overflow-wrap: anywhere; }

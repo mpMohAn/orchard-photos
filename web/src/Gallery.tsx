@@ -120,9 +120,9 @@ const Tile = memo(function Tile({ item, index, style, onOpen, selecting, marked,
   const [failed, setFailed] = useState(false);
   const name = fileName(item.path);
   const label = item.members > 1 ? `Open ${name} and ${plural(item.members - 1, 'near-duplicate')}` : `Open ${name}`;
-  return <div className="photo-tile" data-small={item.width < 64 || item.height < 64 || undefined} style={style}><button className="picture" data-image-id={item.id} data-selected={marked || undefined} onClick={event => selecting || event.shiftKey ? onToggle?.(item.id, event.shiftKey) : onOpen(index)} aria-pressed={selecting ? marked : undefined} aria-label={selecting ? `Select ${name}` : label} title={item.path}>
+  return <div className="photo-tile" data-small={item.width < 64 || item.height < 64 || undefined} style={style}><button className="picture" data-image-id={item.id} data-selected={marked || undefined} onClick={event => (selecting || event.shiftKey) && onToggle ? onToggle(item.id, event.shiftKey) : onOpen(index)} aria-pressed={selecting ? marked : undefined} aria-label={selecting ? `Select ${name}` : label} title={item.path}>
     {failed ? <span className="missing">Preview unavailable</span> : <img style={{ maxWidth: `min(100%, ${item.width}px)`, maxHeight: `min(100%, ${item.height}px)` }} src={imageUrl(item.id)} alt={name} decoding="async" onDragStart={dragImage(item.id)} onError={() => setFailed(true)} />}
 
     {item.members > 1 && <span className="members" aria-hidden="true"><Layers />{item.members.toLocaleString()}</span>}
-  </button><button className="photo-select" data-selecting={selecting || undefined} aria-label={`${marked ? 'Deselect' : 'Select'} ${name}`} aria-pressed={marked} onClick={event => onToggle?.(item.id, event.shiftKey)}><Check /></button></div>;
+  </button>{onToggle && <button className="photo-select" data-selecting={selecting || undefined} aria-label={`${marked ? 'Deselect' : 'Select'} ${name}`} aria-pressed={marked} onClick={event => onToggle(item.id, event.shiftKey)}><Check /></button>}</div>;
 });

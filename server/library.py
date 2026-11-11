@@ -14,6 +14,7 @@ from server.atlas import Atlas
 from server.cache import connect, preview_path, thumbnail_path, while_open
 from server.duplicates import Duplicates
 from server.groups import Groups
+from server.faces import People
 from server.layout import Layout
 from server.scanner import FolderUnavailable, ScanCancelled, Scanner, scaled
 from server.searches import Searches, like, parse_query
@@ -65,6 +66,7 @@ class Library:
             self.groups.clear()
             self.semantic.discard_other_models()
         self.closed = threading.Event()
+        self.people = People(self)
         self.scan_lock = threading.Lock()
         self.semantic_lock = threading.Lock()
         self.index_wanted = False
@@ -113,6 +115,7 @@ class Library:
             self.scan_state = {'state': 'error', 'error': 'The folder could not be read completely. Rescan to retry.'}
         finally:
             self.scan_lock.release()
+            self.people.start()
 
     def index(self):
         """Prepare new images for visual search and group near-duplicates. A call made while this runs is folded
@@ -155,6 +158,9 @@ class Library:
         if folder:
             where.append('(f.folder=? OR substr(f.folder,1,?)=?)')
             values += [folder, len(folder) + 1, folder + '/']
+        if params.get('person'):
+            where.append('EXISTS (SELECT 1 FROM faces pf JOIN people pp ON pp.id=pf.person WHERE pf.image_id=i.id AND pf.ignored=0 AND (pf.person=? OR pp.name=? COLLATE NOCASE))')
+            values.extend([params['person'], params['person']])
         if params.get('type'):
             where.append('i.mime=?')
             values.append(params['type'])

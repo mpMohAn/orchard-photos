@@ -7,6 +7,7 @@ import { checkDuplicates } from './duplicates';
 import { checkSearches } from './searches';
 import { checkPhotoActions } from './photo-actions';
 import { checkExplorePerformance } from './explore';
+import { checkPeople } from './people';
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
@@ -181,6 +182,7 @@ test('opens a folder and browses, filters, maps and searches it', async ({ page 
   });
   await test.step('duplicate classification, comparison and explicit confirmation', async () => {
     await checkPhotoActions(page);
+    await checkPeople(page);
     await checkExplorePerformance(page);
     await checkDuplicates(page);
   });

@@ -19,7 +19,7 @@ def like(text):
 
 def parse_query(query):
     """Recognized operators become additional filters. Ordinary words remain a text query."""
-    if not re.search(r'(^|\s)(from|to|year|camera|name|folder|type):', query):
+    if not re.search(r'(^|\s)(from|to|year|camera|name|folder|type|person):', query):
         return query.strip(), {}
     try:
         lexer = shlex.shlex(query, posix=True)
@@ -32,7 +32,7 @@ def parse_query(query):
     words, filters = [], {}
     for token in tokens:
         key, separator, value = token.partition(':')
-        if not separator or key not in {'from', 'to', 'year', 'camera', 'name', 'folder', 'type'}:
+        if not separator or key not in {'from', 'to', 'year', 'camera', 'name', 'folder', 'type', 'person'}:
             words.append(token)
             continue
         if not value or key in filters:

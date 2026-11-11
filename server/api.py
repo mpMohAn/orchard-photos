@@ -398,6 +398,24 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if route == ('/api/status', False):
                 self.json(self.app.status())
+            elif route == ('/api/people', False):
+                self.json(self.app.current().people.status())
+            elif route == ('/api/people', True):
+                with self.app._lock:
+                    self.json(self.app.current().people.update(self.form()))
+            elif route == ('/api/people/members', False):
+                self.json(self.app.current().people.members(params.get('person', '')))
+            elif re.fullmatch(r'/api/people/face/[a-f0-9]{24}', url.path) and not post:
+                crop = self.app.current().people.crop(url.path.rsplit('/', 1)[1])
+                if crop is None:
+                    self.json({'error': 'Face unavailable.'}, 404)
+                else:
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'image/webp')
+                    self.send_header('Content-Length', str(len(crop)))
+                    self.send_header('Cache-Control', 'no-store')
+                    self.end_headers()
+                    self.wfile.write(crop)
             elif route == ('/api/diagnostics', False):
                 self.json({'report': report(self.app, f'{APP["name"]} {APP["version"]}')})
             elif route == ('/api/updates', False):
