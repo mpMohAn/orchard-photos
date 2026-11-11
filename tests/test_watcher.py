@@ -49,6 +49,14 @@ class FolderChangesTests(unittest.TestCase):
         self.settle_and_scan()
         self.assertEqual(self.library.pictures({})['total'], 1)
 
+    def test_download_finishing_before_next_probe_is_detected(self):
+        path = self.photos / 'download.png'
+        path.write_bytes(b'incomplete')
+        self.settle_and_scan()
+        Image.new('RGB', (32, 32), 'green').save(path)
+        self.settle_and_scan()
+        self.assertEqual(self.library.pictures({})['total'], 1)
+
     def test_steady_directory_does_not_request_repeated_scans(self):
         for _ in range(10):
             self.assertFalse(self.changes.changed(self.library))

@@ -62,16 +62,19 @@ class FolderChanges:
         if updated != self.updated:
             self.updated = updated
             with connect(library.directory) as db:
-                errors = db.execute('SELECT path FROM files WHERE error IS NOT NULL LIMIT 256').fetchall()
+                errors = db.execute('SELECT path,mtime_ns,size FROM files WHERE error IS NOT NULL LIMIT 256').fetchall()
             self.incomplete = {}
             for row in errors:
                 try:
                     path = library.scanner.source.file(row[0])
-                    self.incomplete[path] = self.stamp(path)
+                    self.incomplete[path] = row[1], row[2]
                 except (OSError, ValueError):
                     continue
         directories = {path: self.stamp(path) for path in self.directories}
-        incomplete = {path: self.stamp(path) for path in self.incomplete}
+        incomplete = {}
+        for path in self.incomplete:
+            stamp = self.stamp(path)
+            incomplete[path] = stamp[:2] if stamp else None
         if directories != self.directories or incomplete != self.incomplete:
             self.directories = self.discover(library.roots)
             self.incomplete = incomplete

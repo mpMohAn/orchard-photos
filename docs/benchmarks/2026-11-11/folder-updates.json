@@ -1,7 +1,9 @@
 {
-  "newImageSeconds": 0.951,
-  "completedDownloadSeconds": 2.067,
-  "newSubfolderSeconds": 1.995,
+  "newImageSeconds": 3.309,
+  "completedDownloadSeconds": 6.93,
+  "newSubfolderSeconds": 2.792,
   "generatedImages": 3,
-  "isolatedHomeAndData": true
+  "isolatedHomeAndData": true,
+  "uiRefreshSeconds": 3.107,
+  "browserReloadRequired": false
 }
