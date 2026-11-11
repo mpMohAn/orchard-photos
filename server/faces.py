@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image
 
 from server.cache import connect
-from server.scanner import scaled, refuse_oversized
+from server.scanner import refuse_oversized, scaled
 
 MODELS = (
     ('face_detection_yunet', 'face_detection_yunet_2023mar.onnx', '8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4', 232589),
@@ -168,7 +168,8 @@ class People:
 
     def _run(self):
         generation = self.generation
-        cancelled = lambda: self.library.closed.is_set() or not self.enabled or self.paused or self.generation != generation
+        def cancelled():
+            return self.library.closed.is_set() or not self.enabled or self.paused or self.generation != generation
         encoder = FaceEncoder(self.library.semantic.encoder.cache / 'faces')
         interrupted = True
         try:

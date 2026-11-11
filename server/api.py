@@ -24,8 +24,8 @@ import webbrowser
 from server import photos
 from server.diagnostics import LAST_ERROR, report
 from server.indexing import IndexingControls
-from server.login import LoginLaunch
 from server.library import IMAGE_ID, Library
+from server.login import LoginLaunch
 from server.semantic import Encoder
 from server.updates import Updates
 from server.window import Window, become_app, unavailable

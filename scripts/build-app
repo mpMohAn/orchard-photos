@@ -91,7 +91,7 @@ def copy_app(target: Path):
         commit = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True, stderr=subprocess.DEVNULL).strip()
     except (OSError, subprocess.CalledProcessError):
         commit = None
-    files = {str(path.relative_to(target)): hashlib.sha256(path.read_bytes()).hexdigest()
+    files = {path.relative_to(target).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
              for path in sorted(target.rglob('*')) if path.is_file()}
     runtime = INTEL_RUNTIME if sys.platform == 'darwin' and platform.machine() == 'x86_64' else RUNTIMES.get(sys.platform)
     (target / 'BUILD.json').write_text(json.dumps({'app': APP, 'commit': commit, 'architecture': platform.machine(), 'runtime': runtime,

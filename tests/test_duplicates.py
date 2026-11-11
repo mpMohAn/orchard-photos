@@ -14,6 +14,7 @@ from server.library import Library
 from server.semantic import Encoder
 
 
+@unittest.skipIf(os.name == 'nt', 'macOS Trash review uses POSIX descriptor/path file identity; native Trash is unavailable on Windows.')
 class DuplicateTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

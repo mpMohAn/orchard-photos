@@ -13,8 +13,8 @@ from server import photos
 from server.atlas import Atlas
 from server.cache import connect, preview_path, thumbnail_path, while_open
 from server.duplicates import Duplicates
-from server.groups import Groups
 from server.faces import People
+from server.groups import Groups
 from server.layout import Layout
 from server.scanner import FolderUnavailable, ScanCancelled, Scanner, scaled
 from server.searches import Searches, like, parse_query

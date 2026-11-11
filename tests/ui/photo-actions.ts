@@ -2,6 +2,12 @@ import { expect, type Page } from '@playwright/test';
 
 /** Real reviews of generated originals; the consequential native move is intercepted. */
 export async function checkPhotoActions(page: Page) {
+  const status = await (await page.request.get('/api/status')).json();
+  if (status.platform !== 'darwin') {
+    await expect(page.getByRole('button', { name: 'Trash selected', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Show in Finder', exact: true })).toHaveCount(0);
+    return;
+  }
   let confirms = 0;
   await page.route('**/api/trash/confirm', async route => {
     confirms++;
