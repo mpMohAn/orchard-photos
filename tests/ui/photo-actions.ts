@@ -5,7 +5,9 @@ export async function checkPhotoActions(page: Page) {
   const status = await (await page.request.get('/api/status')).json();
   if (status.platform !== 'darwin') {
     await expect(page.getByRole('button', { name: 'Trash selected', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Show in Finder', exact: true })).toBeDisabled();
+    await page.route('**/api/folder/reveal', route => route.fulfill({ json: { revealed: true } }));
+    await page.getByRole('button', { name: 'Show in Finder', exact: true }).click();
+    await page.unroute('**/api/folder/reveal');
     return;
   }
   let confirms = 0;
