@@ -62,7 +62,7 @@ test('opens a folder and browses, filters, maps and searches it', async ({ page 
     const name = viewer.getByRole('heading', { level: 1 });
     const first = await name.textContent();
     await expect(viewer.locator('img').first()).toBeVisible();
-    await expect(viewer.getByRole('button', { name: 'Show image details', exact: true })).toBeVisible();
+    await expect(viewer.getByRole('button', { name: 'Hide image details', exact: true })).toBeVisible();
     expect(await viewer.locator('.preview-image').evaluate(image => image.getBoundingClientRect().width)).toBeLessThanOrEqual(48);
     await expect(viewer).toHaveCSS('animation-name', 'viewer-enter');
     await viewer.getByRole('button', { name: 'Next image' }).click();

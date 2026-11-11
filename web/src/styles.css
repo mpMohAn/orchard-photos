@@ -489,6 +489,14 @@ html, body { overflow-x: clip; }
 .people-progress { display: flex; align-items: center; flex-wrap: wrap; color: var(--muted); gap: var(--s2); }
 .people-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--s8) var(--s6); max-width: 1100px; }
 .person-card { display: flex; flex-direction: column; align-items: center; gap: var(--s2); min-width: 0; padding: var(--s3); border-radius: var(--surface-radius); }
+.person-picker { width: min(640px, calc(100vw - 32px)); max-height: 85dvh; overflow: auto; padding: var(--s6); border: 1px solid var(--line); border-radius: var(--surface-radius); background: var(--surface); color: var(--ink); }
+.person-picker::backdrop { background: #0009; }
+.person-picker header, .person-picker form { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); }
+.person-picker header { justify-content: space-between; }
+.person-picker h2 { margin: 0; }
+.person-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--s3); margin: var(--s4) 0; }
+.person-picker .assign-face { display: block; width: 96px; height: 96px; border-radius: 50%; margin: var(--s4) auto; }
+.person-picker input { min-width: 0; max-width: 100%; min-height: var(--control); padding: var(--s3); background: transparent; border: 1px solid var(--line); border-radius: var(--control-radius); }
 .person-card:hover { background: var(--soft); }
 .person-card img { width: 120px; height: 120px; object-fit: cover; border-radius: var(--pill); background: var(--soft); }
 .person-card strong { font-weight: 500; overflow-wrap: anywhere; }

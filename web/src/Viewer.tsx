@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Copy, Download, FolderOpen, Images, Info, ScanSearch, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Details, Filters, Picture, Results } from './types';
-import { Disclosure } from './Panels';
 import { dateLabel, downloadUrl, fileName, filterParams, folderOf, imageUrl, plural, post, request, sizeLabel, typeLabel } from './types';
 
 interface Props {
@@ -32,7 +31,7 @@ export default function Viewer({ items, index, total, hasMore, loadingMore, page
   const [error, setError] = useState('');
   const [failed, setFailed] = useState(false);
   const [zoom, setZoom] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(true);
   const [copied, setCopied] = useState<{ id: string; note: string } | null>(null);
   // The grid shows one image per group of near-duplicates; the viewer can show any of them.
   const [members, setMembers] = useState<Picture[]>([]);
@@ -145,12 +144,12 @@ export default function Viewer({ items, index, total, hasMore, loadingMore, page
           <h2>{plural(members.length, 'near-duplicate')}</h2>
           <ul>{members.map((member, place) => <li key={member.id}><button aria-pressed={place === shown} aria-label={`Show ${fileName(member.path)}`} title={member.path} onClick={() => setShown(place)}><img src={imageUrl(member.id)} alt="" decoding="async" /></button></li>)}</ul>
         </section>}
-        {details && <Disclosure summary="Details">
+        {details && <section aria-label="File details"><h3>Details</h3>
           <p className="path">{photos ? `In your ${details.root} library` : file?.original ?? `${details.root}/${item.path}`}</p>
           {otherDate && <p>{otherDate}</p>}
           {details.camera && <p>{details.camera}</p>}
           {!!others.length && <><p>Also saved in {plural(others.length, 'other place')}</p><ul className="file-list">{others.map(other => <li key={other.path}><span className="path">{photos ? fileName(other.path) : other.original ?? other.path}</span><button className="icon-button" aria-label={`${reveal}: ${photos ? fileName(other.path) : other.original ?? other.path}`} title={reveal} onClick={() => show(other.path)}><RevealIcon /></button></li>)}</ul></>}
-        </Disclosure>}
+        </section>}
       </aside>}
     </div>
   </dialog>;

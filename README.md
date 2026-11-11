@@ -53,6 +53,6 @@ Orchard only goes online to download the search model, and to check for updates 
 
 Open **People** in the sidebar, confirm local face processing and choose **Enable People**. Setup downloads approximately 39 MB of models once. Photos are processed on this Mac using up to two CPU threads. Progress is saved after each image and can be paused or resumed.
 
-Choose a face group to browse its photos and add a name. Search for named groups using `person:"Name"`. Use **Same person?** to merge groups. **Review detected faces** provides **Separate face** and **Not a face** corrections. Small, blurred or turned-away faces may be missed, and automatic matches may need correction.
+Choose a face group to browse its photos and add a name. Search for named groups using `person:"Name"`. Use **Same person?** to merge groups. **Review detected faces** provides **Name or match person** to assign an individual face using portraits and names, plus **Separate face** and **Not a face** corrections. Small, blurred or turned-away faces may be missed, and automatic matches may need correction.
 
 **People settings → Clear face data** requires confirmation and removes this library's face crops, embeddings, names and groups. Processing turns off and the original photos remain in their folders. Face-model licenses are included in `server/face-model-licenses/`.

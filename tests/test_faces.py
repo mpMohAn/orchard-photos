@@ -122,6 +122,19 @@ class PeopleTests(unittest.TestCase):
         self.assertTrue(people.compatible)
         self.assertEqual(people.status()['people'], [])
 
+    def test_face_can_be_assigned_to_existing_person_or_new_name(self):
+        self.seed()
+        groups = self.people.status()['people']
+        face = self.people.members(groups[0]['id'])[0]['id']
+        with self.assertRaises(ValueError):
+            self.people.update({'action': 'assign', 'face': face, 'person': 'missing'})
+        self.people.update({'action': 'assign', 'face': face, 'person': groups[1]['id']})
+        self.assertIn(face, [item['id'] for item in self.people.members(groups[1]['id'])])
+        result = self.people.update({'action': 'assign', 'face': face, 'name': 'New person'})
+        named = next(item for item in result['people'] if item['name'] == 'New person')
+        self.assertEqual(self.people.members(named['id'])[0]['id'], face)
+        self.assertEqual(self.library.pictures({'q': 'person:"New person"'})['total'], 1)
+
     def test_naming_does_not_restart_model_loading(self):
         self.seed()
         person = self.people.status()['people'][0]['id']

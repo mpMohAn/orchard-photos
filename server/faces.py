@@ -284,11 +284,23 @@ class People:
                     raise ValueError('Choose two different people.')
                 db.execute('UPDATE faces SET person=? WHERE person=?', (target, source))
                 db.execute('DELETE FROM people WHERE id=?', (source,))
-            elif action in {'separate', 'ignore'}:
+            elif action in {'separate', 'ignore', 'assign'}:
                 face = values.get('face')
                 if not isinstance(face, str) or not db.execute('SELECT 1 FROM faces WHERE id=? AND ignored=0', (face,)).fetchone():
                     raise ValueError('Choose a detected face.')
-                if action == 'ignore':
+                if action == 'assign':
+                    person = values.get('person')
+                    if person:
+                        if not isinstance(person, str) or not db.execute('SELECT 1 FROM people WHERE id=?', (person,)).fetchone():
+                            raise ValueError('Choose an existing person.')
+                    else:
+                        name = values.get('name')
+                        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
+                            raise ValueError('Use a name of 1–80 characters.')
+                        person = secrets.token_hex(8)
+                        db.execute('INSERT INTO people(id,name) VALUES (?,?)', (person, name.strip()))
+                    db.execute('UPDATE faces SET person=? WHERE id=?', (person, face))
+                elif action == 'ignore':
                     db.execute('UPDATE faces SET ignored=1,vector=NULL,crop=NULL WHERE id=?', (face,))
                 else:
                     person = secrets.token_hex(8)

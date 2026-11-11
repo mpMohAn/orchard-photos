@@ -177,3 +177,12 @@ Representative-library accuracy, large People collections and native user accept
 
 
 The final performance follow-up keeps model sessions unloaded when naming or correcting completed groups and skips model loading on scans with no pending photos. A dedicated regression test verifies that naming does not restart processing. Eight People tests pass. GitHub CI also validates the complete platform suites, lint, web build and browser flow. Native Trash simulation runs on supported POSIX test platforms, while Windows retains coverage for the other features and the browser checks its available folder-reveal action.
+
+
+## Review fixes — 2026-11-11
+
+The user requested direct face naming/matching, prompt updates for new downloads, and the right-hand preview details/duplicate information. Each detected face now has **Name or match person**, opening a portrait-and-name picker for existing groups or a new name. Group-level **Same person? Merge groups** uses the same visual picker. Assignment updates the existing face record and invalidates person-photo caches.
+
+Regular-folder monitoring now probes directory metadata between periodic full reconciliations, debounces changes, discovers newly created subfolders, and retries incomplete downloads after their file metadata changes. Continuous additions have a bounded debounce, and the index directory is excluded from probes. Probe frequency adapts to the cost of checking large/slow folder trees. The generated-file normal-entry test observed 0.951 seconds for a new image, 2.067 seconds after a partial download completed, and 1.995 seconds for a new subfolder. These measurements cover a small local generated library. Apple Photos retains periodic reconciliation.
+
+Preview details now open by default. File metadata and exact-duplicate locations are visible without expanding another disclosure, alongside the existing near-duplicate previews. The animated dark viewer and native-size small-image rendering remain available. Browser tests cover default details, exact duplicate locations, individual face assignment/new-name submission, group matching, and responsive layouts. Focused Python regression and lint/build checks pass. A new Intel review artifact is required for these changes.

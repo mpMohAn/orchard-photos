@@ -28,6 +28,7 @@ from server.library import IMAGE_ID, Library
 from server.login import LoginLaunch
 from server.semantic import Encoder
 from server.updates import Updates
+from server.watcher import FolderChanges
 from server.window import Window, become_app, unavailable
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -693,11 +694,21 @@ def main(argv=None):
             sys.exit(str(error))
         if not args.no_watch:
             def watch():
-                pause = WATCH_SECONDS
+                changes = FolderChanges()
+                next_scan = time.monotonic() + WATCH_SECONDS
+                pause = 1
                 while not stopped.wait(pause):
-                    if app.library:
-                        app.library.scan()
-                        pause = max(WATCH_SECONDS, WATCH_LISTING_FACTOR * app.library.stats.get('listed_seconds', 0))
+                    library = app.library
+                    if not library or library.closed.is_set() or library.scan_lock.locked():
+                        continue
+                    started = time.monotonic()
+                    changed = changes.changed(library)
+                    probe_seconds = time.monotonic() - started
+                    if changed or started >= next_scan:
+                        library.scan(retry=True)
+                        next_scan = time.monotonic() + max(WATCH_SECONDS, WATCH_LISTING_FACTOR * library.stats.get('listed_seconds', 0))
+                    # Bound metadata-probe overhead on large or slow folder trees.
+                    pause = max(1, probe_seconds * 50)
             threading.Thread(target=watch, daemon=True).start()
         if app.encoder.downloaded():
             # Load the model before the first search, then index.

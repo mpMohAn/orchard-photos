@@ -5,6 +5,7 @@ export async function checkPeople(page: Page) {
   const groups = [{ id: 'a'.repeat(16), name: '', photos: 2, cover: '1'.repeat(24) }, { id: 'b'.repeat(16), name: 'Family', photos: 1, cover: '2'.repeat(24) }];
   let enabled = false;
   let paused = false;
+  let assigned: { person?: string; name?: string } | undefined;
   const response = await page.request.get('/api/images');
   const pictures = (await response.json()).items;
   const portrait = '<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112"><rect width="112" height="112" fill="#dce8fb"/><circle cx="56" cy="42" r="22" fill="#8094b3"/><ellipse cx="56" cy="102" rx="40" ry="35" fill="#8094b3"/></svg>';
@@ -18,6 +19,7 @@ export async function checkPeople(page: Page) {
       if (values.action === 'pause') paused = true;
       if (values.action === 'resume') paused = false;
       if (values.action === 'name') groups[0].name = values.name;
+      if (values.action === 'assign') assigned = values;
       if (values.action === 'merge') groups.splice(0, 1);
       if (values.action === 'clear') { expect(values.confirmed).toBe(true); enabled = false; groups.splice(0); }
     }
@@ -40,6 +42,23 @@ export async function checkPeople(page: Page) {
   await expect(pageView.getByRole('heading', { level: 1 })).toHaveText('Mohan');
   await page.locator('.face-corrections summary').click();
   await expect(pageView.getByRole('button', { name: 'Separate face', exact: true })).toBeVisible();
+  await pageView.getByRole('button', { name: 'Name or match person', exact: true }).click();
+  const picker = page.getByRole('dialog', { name: 'Name or match person', exact: true });
+  await expect(picker.getByRole('button', { name: /Family/ })).toBeVisible();
+  await expect(picker.getByLabel('Or create a person')).toBeVisible();
+  await page.screenshot({ path: 'test-results/people-person-picker.png' });
+  await picker.getByRole('button', { name: /Family/ }).click();
+  await expect(picker).not.toBeVisible();
+  expect(assigned?.person).toBe('b'.repeat(16));
+  await pageView.getByRole('button', { name: 'Name or match person', exact: true }).click();
+  await picker.getByLabel('Or create a person').fill('New person');
+  await picker.getByRole('button', { name: 'Save person', exact: true }).click();
+  await expect(picker).not.toBeVisible();
+  expect(assigned?.name).toBe('New person');
+  await pageView.getByRole('button', { name: 'Same person? Merge groups', exact: true }).click();
+  const merge = page.getByRole('dialog', { name: 'Merge person groups' });
+  await expect(merge.getByRole('button', { name: /Family/ })).toBeVisible();
+  await merge.getByRole('button', { name: 'Close', exact: true }).click();
   await page.screenshot({ path: 'test-results/people-detail.png' });
   for (const width of [320, 375, 414, 768]) {
     await page.setViewportSize({ width, height: 900 });
