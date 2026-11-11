@@ -1,5 +1,6 @@
 :root {
   --sidebar-width: 248px;
+  --viewer-bg: #151719; --viewer-ink: #f1f3f4; --viewer-muted: #b5b9be; --viewer-line: #3c4043; --viewer-soft: #292b2e;
   --nav-active: #dce8fb;
   --nav-ink: #174ea6;
   --canvas: #f1f4f9;

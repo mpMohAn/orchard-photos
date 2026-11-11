@@ -31,6 +31,8 @@ export async function checkWorkspaceFolders(page: Page) {
   await expect(viewer.getByRole('button', { name: 'Fit to screen', exact: true })).toBeVisible();
   await page.keyboard.press('z');
   await expect(viewer.getByRole('button', { name: 'View actual size', exact: true })).toBeVisible();
+  await expect(viewer.locator('.image-details')).toHaveCount(0);
+  await viewer.getByRole('button', { name: 'Show image details', exact: true }).click();
   await viewer.getByRole('button', { name: 'Hide image details', exact: true }).click();
   await expect(viewer.locator('.image-details')).toHaveCount(0);
   await viewer.getByRole('button', { name: 'Show image details', exact: true }).click();
@@ -62,6 +64,7 @@ export async function checkWorkspaceFolders(page: Page) {
   await expect(pictures).toHaveCount(1);
   await pictures.first().click();
   await expect(viewer.getByRole('heading', { level: 1 })).toHaveText('copper.png');
+  await viewer.getByRole('button', { name: 'Show image details', exact: true }).click();
   await viewer.getByText('Details', { exact: true }).click();
   await expect(viewer.getByText(join(realpathSync(process.env.ORCHARD_UI_EXTRA!), 'copper.png'), { exact: true })).toBeVisible();
   await expect(viewer.locator('.image-stage img')).toBeVisible();

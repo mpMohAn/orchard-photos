@@ -159,3 +159,7 @@ Update this file as evidence changes. Scope changes must be explicitly approved 
 The user approved a closer Google Photos browsing/selection flow and opt-in local People grouping. The selection pass adds thumbnail checkmarks, Shift-click ranges among loaded photos, a top selected-count toolbar, and visible folder-wide selection before Trash review. The previous “Review all photos in this folder for Trash” command has been replaced. Existing native Trash verification/journaling is retained.
 
 People grouping is approved but not implemented at this checkpoint. It requires detection, alignment, local face embeddings, editable groups/names, opt-in/pause/clear controls, licensing and Intel validation. Pet grouping, cloud backup/sharing, advanced AI edits, and Locked Folder are not implemented. No installed app or personal-photo data has been modified.
+
+## Preview follow-up — 2026-11-11
+
+Small originals keep their native display dimensions in the gallery, and rows containing only small images stay compact. Tiny tile selection controls leave the photo centre available for opening. The viewer starts with details collapsed, uses a dark photo stage, animates from the thumbnail where available, fades between images, and fades on close. Reduced-motion preference bypasses transitions. Build, ESLint and TypeScript checks pass. Browser regression covers 48-pixel originals, selection, preview navigation and details controls. People/face processing and its Intel performance validation remain pending. The existing DMG predates this follow-up.

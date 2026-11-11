@@ -465,3 +465,19 @@ html, body { overflow-x: clip; }
 .photo-select[aria-pressed='false'] { border: 2px solid var(--surface); }
 .photo-select[aria-pressed='false'] svg { opacity: 0; }
 .picture[data-selected] { box-shadow: inset 0 0 0 var(--s1) var(--nav-ink); }
+
+/* Native-size small images and compositor-only preview transitions. */
+.photo-tile > .picture { display: flex; align-items: center; justify-content: center; }
+.photo-tile > .picture img { flex: none; object-fit: contain; }
+.viewer { animation: viewer-enter var(--motion) var(--ease); }
+.preview-image { width: auto; height: auto; animation: preview-enter var(--motion-slow) var(--ease); }
+.viewer-filename { font-size: var(--body); font-weight: 400; margin: 0 var(--s3); max-width: 35vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes viewer-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes preview-enter { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .viewer, .preview-image { animation: none; } }
+@media (max-width: 480px) { .viewer-filename { max-width: 25vw; margin: 0; } }
+
+.viewer { --bg: var(--viewer-bg); --surface: var(--viewer-bg); --ink: var(--viewer-ink); --muted: var(--viewer-muted); --line: var(--viewer-line); --soft: var(--viewer-soft); background: var(--bg); color: var(--ink); }
+
+.photo-tile[data-small] .photo-select { width: 20px; height: 20px; left: 0; top: 0; }
+.photo-tile[data-small] .photo-select svg { width: 14px; height: 14px; }

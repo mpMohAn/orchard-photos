@@ -40,6 +40,10 @@ test('opens a folder and browses, filters, maps and searches it', async ({ page 
   await test.step('the grid fills', async () => {
     await expect(pictures).toHaveCount(FIXTURE.images);
     await expect(meta).toHaveText(plural(FIXTURE.images, 'image'));
+    // Generated 48px originals must retain their native display size.
+    const dimensions = await pictures.first().locator('img').evaluate(image => ({ width: image.getBoundingClientRect().width, height: image.getBoundingClientRect().height }));
+    expect(dimensions.width).toBeLessThanOrEqual(48);
+    expect(dimensions.height).toBeLessThanOrEqual(48);
   });
 
   await test.step('workspace navigation, selection and responsive controls', async () => {
@@ -57,6 +61,9 @@ test('opens a folder and browses, filters, maps and searches it', async ({ page 
     const name = viewer.getByRole('heading', { level: 1 });
     const first = await name.textContent();
     await expect(viewer.locator('img').first()).toBeVisible();
+    await expect(viewer.getByRole('button', { name: 'Show image details', exact: true })).toBeVisible();
+    expect(await viewer.locator('.preview-image').evaluate(image => image.getBoundingClientRect().width)).toBeLessThanOrEqual(48);
+    await expect(viewer).toHaveCSS('animation-name', 'viewer-enter');
     await viewer.getByRole('button', { name: 'Next image' }).click();
     await expect(name).not.toHaveText(first!);
     await page.keyboard.press('Escape');

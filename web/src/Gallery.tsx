@@ -60,12 +60,12 @@ export default function Gallery({ items, sections, onOpen, ref, selecting = fals
     // Lays out the pending row: scaled to fill the width, or at the target height if it is the last of its run.
     const flush = (last: boolean) => {
       if (!row.length) return;
-      const tall = Math.min(last ? target : Infinity, fill(row));
+      const tall = Math.min(last ? target : Infinity, fill(row), Math.max(48, ...row.map(tile => items[tile.index].height)));
       let x = 0;
       row.forEach(({ index, ratio }, place) => {
         const left = Math.round(x);
         x += ratio * tall;
-        const full = !last || tall < target;
+        const full = Math.abs(tall - fill(row)) < .5;
         positions[index] = { left, top, height: tall, width: (place === row.length - 1 && full ? width : Math.round(x)) - left };
         x += gap;
       });
@@ -120,8 +120,8 @@ const Tile = memo(function Tile({ item, index, style, onOpen, selecting, marked,
   const [failed, setFailed] = useState(false);
   const name = fileName(item.path);
   const label = item.members > 1 ? `Open ${name} and ${plural(item.members - 1, 'near-duplicate')}` : `Open ${name}`;
-  return <div className="photo-tile" style={style}><button className="picture" data-selected={marked || undefined} onClick={event => selecting || event.shiftKey ? onToggle?.(item.id, event.shiftKey) : onOpen(index)} aria-pressed={selecting ? marked : undefined} aria-label={selecting ? `Select ${name}` : label} title={item.path}>
-    {failed ? <span className="missing">Preview unavailable</span> : <img src={imageUrl(item.id)} alt={name} decoding="async" onDragStart={dragImage(item.id)} onError={() => setFailed(true)} />}
+  return <div className="photo-tile" data-small={item.width < 64 || item.height < 64 || undefined} style={style}><button className="picture" data-image-id={item.id} data-selected={marked || undefined} onClick={event => selecting || event.shiftKey ? onToggle?.(item.id, event.shiftKey) : onOpen(index)} aria-pressed={selecting ? marked : undefined} aria-label={selecting ? `Select ${name}` : label} title={item.path}>
+    {failed ? <span className="missing">Preview unavailable</span> : <img style={{ maxWidth: `min(100%, ${item.width}px)`, maxHeight: `min(100%, ${item.height}px)` }} src={imageUrl(item.id)} alt={name} decoding="async" onDragStart={dragImage(item.id)} onError={() => setFailed(true)} />}
 
     {item.members > 1 && <span className="members" aria-hidden="true"><Layers />{item.members.toLocaleString()}</span>}
   </button><button className="photo-select" data-selecting={selecting || undefined} aria-label={`${marked ? 'Deselect' : 'Select'} ${name}`} aria-pressed={marked} onClick={event => onToggle?.(item.id, event.shiftKey)}><Check /></button></div>;
