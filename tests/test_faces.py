@@ -121,3 +121,10 @@ class PeopleTests(unittest.TestCase):
         people.update({'action': 'clear', 'confirmed': True})
         self.assertTrue(people.compatible)
         self.assertEqual(people.status()['people'], [])
+
+    def test_naming_does_not_restart_model_loading(self):
+        self.seed()
+        person = self.people.status()['people'][0]['id']
+        with patch.object(self.people, 'start') as start:
+            self.people.update({'action': 'name', 'person': person, 'name': 'Family'})
+        start.assert_not_called()

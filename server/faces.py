@@ -173,6 +173,12 @@ class People:
         encoder = FaceEncoder(self.library.semantic.encoder.cache / 'faces')
         interrupted = True
         try:
+            with connect(self.library.directory) as db:
+                pending = db.execute('SELECT 1 FROM images WHERE id NOT IN (SELECT image_id FROM faces_processed) LIMIT 1').fetchone()
+            if not pending:
+                self.state, self.error = 'ready', ''
+                interrupted = False
+                return
             self.state, self.error = 'loading', ''
             if not encoder.load(cancelled) or cancelled():
                 return
@@ -298,5 +304,6 @@ class People:
                 self.compatible = True
                 self.generation += 1
         self.library.revision += 1
-        self.start()
+        if action in {'enable', 'resume'}:
+            self.start()
         return self.status()
