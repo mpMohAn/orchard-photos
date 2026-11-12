@@ -192,6 +192,23 @@ export function IndexingSettings({ onRefresh, compact = false }: { onRefresh: ()
   </section>;
 }
 
+function LoginSetting() {
+  const [setting, setSetting] = useState<{ available: boolean; enabled: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => { request<{ available: boolean; enabled: boolean }>('/api/login').then(setSetting, e => setError((e as Error).message)); }, []);
+  const change = async (enabled: boolean) => {
+    setBusy(true); setError('');
+    try { setSetting(await post<{ available: boolean; enabled: boolean }>('/api/login', { enabled })); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  return <>
+    <label className="check"><input type="checkbox" checked={!!setting?.enabled} disabled={busy || !setting?.available} aria-describedby="login-note" onChange={e => void change(e.target.checked)} /><span>Launch Orchard at login<span className="muted" id="login-note">{setting?.available ? 'Opens this app at your next Mac login. Off by default. Turn it off before moving or removing this app.' : 'Available when running the macOS app bundle.'}</span></span></label>
+    {error && <p className="error-copy" role="alert">{error}</p>}
+  </>;
+}
+
 /** The update check and Copy diagnostics, under the version in Info. */
 function About({ library }: { library: LibraryStatus }) {
   const [updates, setUpdates] = useState<Updates | null>(null);
@@ -212,6 +229,7 @@ function About({ library }: { library: LibraryStatus }) {
   };
   const copy = async (button: HTMLElement) => setCopied(await copyText(report, button) ? 'copied' : 'select');
   return <>
+    <LoginSetting />
     {updates?.update && <div className="panel-action"><p>Version {updates.update.version} is available.</p><a className="text-button secondary" href={updates.update.url} target="_blank" rel="noreferrer">See the release</a></div>}
     <label className="check"><input type="checkbox" checked={!!updates?.enabled} disabled={!updates} aria-describedby="updates-note" onChange={e => void turn(e.target.checked)} /><span>Check for updates on GitHub<span className="muted" id="updates-note">Once a day, {APP_NAME} asks GitHub whether a newer version is out. Nothing about your images is sent.</span></span></label>
     <div className="panel-action"><p role="status">{copied === 'copied' ? 'Copied. Paste it into your bug report.' : copied === 'select' ? 'Copy the text below into your bug report.' : 'For bug reports, without file names or folders.'}</p><button className="text-button secondary" disabled={!report} onClick={e => void copy(e.currentTarget)}>{copied === 'copied' && <Check />}Copy diagnostics</button></div>
@@ -285,6 +303,8 @@ export function SearchMenu({ mode, search, model, anchor, onMode, onSetUp, onUpl
         <button className="text-button menu-item" aria-pressed={false} aria-describedby="appearance-note" disabled={busy} onClick={() => { onSetUp(); onClose(); }}><Check />Appearance</button>
         <div className="menu-note" id="appearance-note">{busy ? 'Getting ready. Progress shows under the search bar.' : search?.state === 'error' ? 'The last try failed. Choose it to try again.' : `Sets up visual search: a ${megabytes(model.size)} MB download, once.`}</div>
       </>}
+      {option('hybrid', 'Combined search')}
+      <div className="menu-note">Combines local appearance matches with filename and camera metadata. Filename and metadata search works before visual indexing.</div>
       {option('name', 'File name')}
     </div>
     <hr className="menu-rule" />

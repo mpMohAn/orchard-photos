@@ -30,6 +30,8 @@ Orchard runs in WSL with its own window, through WSLg. Some things differ from L
 
 The downloaded Mac app needs nothing more. When you run Orchard from a clone, `scripts/install-app` installs `~/Applications/Orchard.app`, which opens this clone's window from the Dock or Spotlight. It compiles a small launcher with clang, so it needs the Xcode command line tools, which `xcode-select --install` installs. The first start sets things up, which takes about a minute. If the clone is in your Desktop or Documents folder, macOS asks whether Orchard may open it, and may ask again after you reinstall the app. If Orchard can't start, the app shows the end of its log, `~/Library/Logs/Orchard.log`.
 
+In Info, **Launch Orchard at login** optionally opens this Mac app at your next login, using its current data folder. It is off by default and available only from an app bundle. Move the app to a permanent location first. Turning the setting off removes its login configuration without quitting Orchard. Turn it off before moving or removing the app, then enable it from the new location if wanted. Each app location and data folder has its own setting. macOS may also require allowing the item in System Settings → General → Login Items. This setting does not restart Orchard after you quit it.
+
 The app finds Python the way your terminal did when you ran `scripts/install-app`, so run it again if you install Python somewhere new. With Python from Homebrew or python.org, the window shows in the Dock as Orchard. With other Pythons, like pyenv's, it shows as Python.
 
 ## Browsing
@@ -73,37 +75,47 @@ Images that look almost the same, like bursts, edits and resized copies, share o
 - **File type**.
 - **Date**: Today, Past 7 days, Past 28 days, Past year, All, or a custom range.
 
-Filters also apply to search and the map.
+Filters also apply to search and Visual Explore.
 
 ## Searching
 
 Once visual search is set up, search finds images by what they show. Type a description, like "sunset over water", and press Enter. Until then, search matches file names. The search options button, at the right of the search bar, switches between **Appearance** and **File name**.
 
-Press / to go to the search bar from the grid, the map or the viewer. An open viewer or panel closes first. Cmd+K on a Mac, or Ctrl+K elsewhere, does the same.
+Press / to go to the search bar from the grid, Visual Explore or the viewer. An open viewer or panel closes first. Cmd+K on a Mac, or Ctrl+K elsewhere, does the same.
 
 Cmd+Z, or Ctrl+Z, goes back to the previous search, and Cmd+Shift+Z, or Ctrl+Shift+Z, goes forward again. Clearing a search counts as a step. While you are typing in the search bar, the keys undo your typing first.
 
 You can also search with an image:
 
 - Paste an image into the window.
-- Drop an image anywhere along the top of the window. This works with files, and with images from the grid and the map.
+- Drop an image anywhere along the top of the window. This works with files, and with images from the grid and Visual Explore.
 - Choose **Find similar** in the viewer.
 
 A search shows only real matches, closest first, so the count depends on what the folder holds. If nothing in the folder fits a description, the search says so instead of showing the nearest misses.
 
-## The map
+## Selecting and moving photos to Trash
 
-**Map** lays the whole folder out by similarity, so images that look alike sit together. It shows the newest 25,000 images that match your filters, so in a larger folder, filter by date or subfolder to reach the rest. Scroll or pinch to zoom, drag to move, and click an image to open it. When you search, the matches light up and the rest dim.
+Use a thumbnail’s checkmark to select it without opening it, or choose **Select**. Shift-click another thumbnail/checkmark to select a range among loaded photos. A selected-count toolbar appears at the top. **Select loaded** selects the tiles currently loaded; it does not silently include unloaded photos. **Trash selected** reviews the displayed original file for each selected tile. Other copies and other members of a similar-photo stack stay unless explicitly listed in the review.
 
-To search with an image from the map, press and hold it until it lifts, then drag it to the top of the window.
+The folder actions menu (•••) offers **Select all photos in this folder**. This first shows a selection count and highlights loaded members; no Trash confirmation opens until you choose **Move selected to Trash** or **Trash selected**. It includes every indexed original in that folder and its subfolders, including exact copies and files beyond the loaded gallery. It ignores search/type/date filters, so review the exact paths. The folder itself stays. Reviews support up to 5,000 files; use a smaller subfolder for a larger collection. Unindexed files are not included.
 
-The first layout takes a few seconds. After that, new images are placed next to their nearest neighbours, so the map doesn't rearrange every time you add photos.
+Nothing moves until you review the paths, check the confirmation, and choose **Move to Trash**. Cleanup is available for ordinary folders on macOS. The same content checks, native Trash adapter, durable history, and partial-failure safeguards used by duplicate review apply. Recovery is through Put Back in macOS Trash or the recorded original path, followed by a rescan. **Show in Finder** reveals the currently browsed folder.
+
+**Saved searches** stores a query and filters entered in the main search bar. It is not a second search engine. Enter a query or choose filters before naming and saving it.
+
+## Visual Explore
+
+**Visual Explore** lays the whole folder out by similarity, so images that look alike sit together. It shows the newest 25,000 images that match your filters, so in a larger folder, filter by date or subfolder to reach the rest. Scroll or pinch to zoom, drag to move, and click an image to open it. When you search, the matches light up and the rest dim.
+
+To search with an image from Visual Explore, press and hold it until it lifts, then drag it to the top of the window.
+
+The first layout runs in the background and may take time for a large library. After that, new images are placed next to their nearest neighbours, so Visual Explore doesn't rearrange every time you add photos.
 
 ## Setting up visual search
 
-Visual search and the map need a model called SigLIP 2. It's a one-time download of about 504 MB on an Apple Silicon Mac, or 690 MB on other computers, and it runs offline after that.
+Visual search and Visual Explore need a model called SigLIP 2. It's a one-time download of about 504 MB on an Apple Silicon Mac, or 690 MB on other computers, and it runs offline after that.
 
-When you choose your first folder, **Set up visual search too** is ticked, so the download starts with the scan. If you skipped it, set it up later from **Info**, from the map, or by choosing **Appearance** in the search options. Once it's set up, every folder you open is prepared for visual search on its own.
+When you choose your first folder, **Set up visual search too** is ticked, so the download starts with the scan. If you skipped it, set it up later from **Info**, from Visual Explore, or by choosing **Appearance** in the search options. Once it's set up, every folder you open is prepared for visual search on its own.
 
 Preparing takes a moment per image, and how long a whole folder takes depends mostly on whether Orchard can use the computer's [GPU](#which-gpu-orchard-uses). These rough times come from one Mac and one Intel laptop:
 
@@ -172,6 +184,14 @@ Orchard keeps its cache, the search model and the list of recent folders in one 
 | Linux and WSL | `~/.local/share/orchard/`, or `$XDG_DATA_HOME/orchard/` if that's set |
 
 If you start Orchard with `--data-dir`, it's that folder instead. Run from a clone, the Python packages are separate, in `.venv` inside the clone, and take about 250 MB. The downloaded apps carry their own.
+
+### Combined search and saved searches
+
+**Combined search** in Search options combines local appearance results with filename and camera matches. Exact filename phrases receive a small additional boost. The ranking uses the existing model thresholds and heuristic metadata bonuses. It has not been evaluated as a general accuracy improvement on personal photo libraries.
+
+Use explicit operators alongside ordinary descriptions. Examples include `sunset year:2020`, `camera:"Canon EOS" type:jpg`, `from:2020-01-01 to:2020-12-31`, `name:"beach sunset.jpg"`, and `folder:trips`. Date ranges are inclusive and use the viewer's timezone. Query filters narrow the existing folder/type/date controls. Metadata-only queries work before visual indexing.
+
+Open **Search tools** after typing part of a filename, `camera:` value, or year. Suggestions come from the current catalog. Saved searches retain the query, search mode, filters, and order for that workspace. Give the search a name and choose **Save search**. Select its name to restore it or its remove button to remove it. Each workspace permits 100 named searches. Image uploads and image-reference searches are excluded from text-search bookmarks.
 
 ### Duplicate review
 

@@ -1,5 +1,6 @@
 """Private, on-device SigLIP 2 search. One encoder is shared by every folder; each folder keeps its own embeddings."""
 
+from contextlib import nullcontext
 import hashlib
 from io import BytesIO
 import logging
@@ -427,7 +428,7 @@ class SemanticIndex:
         with Image.open(thumbnail_path(self.directory, image_id)) as image:
             return image.convert("RGB")
 
-    def index(self, cancelled=lambda: False):
+    def index(self, cancelled=lambda: False, resource=None):
         """Embed new images until none are left, including any a scan adds meanwhile."""
         if not self._index_lock.acquire(blocking=False):
             return
@@ -461,7 +462,18 @@ class SemanticIndex:
                     if not images:
                         continue
                     try:
-                        vectors = self.encoder.features(images=images)
+                        while True:
+                            if cancelled() or (self.encoder.controls and not self.encoder.controls.checkpoint(cancelled)):
+                                self._set_state('idle')
+                                return
+                            with resource.turn(cancelled) if resource else nullcontext(True) as active:
+                                if not active:
+                                    self._set_state('idle')
+                                    return
+                                if self.encoder.controls and self.encoder.controls.status()['paused']:
+                                    continue
+                                vectors = self.encoder.features(images=images)
+                                break
                         with connect(self.directory) as connection:
                             connection.executemany(
                                 "INSERT OR REPLACE INTO semantic_embeddings VALUES (?, ?, ?)",

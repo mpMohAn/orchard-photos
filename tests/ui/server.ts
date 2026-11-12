@@ -7,7 +7,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { PORT } from './playwright.config';
 
 const ROOT = resolve(import.meta.dirname, '../..');
-const PYTHON = join(ROOT, '.venv', ...(process.platform === 'win32' ? ['Scripts', 'python.exe'] : ['bin', 'python']));
+export const PYTHON = join(ROOT, '.venv', ...(process.platform === 'win32' ? ['Scripts', 'python.exe'] : ['bin', 'python']));
 const START_SECONDS = 30;
 // Every image is from today, except those in trips/, which are from 2020, so the date filter splits them.
 const TODAY = { 'red.png': [220, 30, 30], 'green.png': [30, 160, 60], 'blue.png': [30, 60, 220], 'yellow.bmp': [240, 210, 30] };

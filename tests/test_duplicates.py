@@ -14,6 +14,7 @@ from server.library import Library
 from server.semantic import Encoder
 
 
+@unittest.skipIf(os.name == 'nt', 'macOS Trash review uses POSIX descriptor/path file identity; native Trash is unavailable on Windows.')
 class DuplicateTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -38,6 +39,36 @@ class DuplicateTests(unittest.TestCase):
 
     def plan(self, paths=None):
         return self.review.plan({'kind': 'exact', 'group': self.image_id, 'paths': paths or ['b.png']})
+
+    def test_selected_original_can_be_trashed_without_a_duplicate_keeper(self):
+        plan = self.review.plan_files({'paths': ['other.png']})
+        with patch('server.duplicates.move_to_trash', self.fake_move):
+            result = self.review.execute({'token': plan['token'], 'confirmed': True})
+        self.assertEqual(result['moved'], 1)
+        self.assertFalse((self.folder / 'other.png').exists())
+        self.assertTrue((self.folder / 'a.png').exists())
+
+    def test_whole_folder_review_lists_every_original_and_is_read_only_until_confirmation(self):
+        plan = self.review.plan_files({'folder': ''})
+        self.assertEqual({file['path'] for file in plan['files']}, {'a.png', 'b.png', 'c.png', 'other.png'})
+        with self.assertRaises(ValueError):
+            self.review.execute({'token': plan['token'], 'confirmed': False})
+        self.assertEqual(len(list(self.folder.iterdir())), 4)
+        with patch('server.duplicates.move_to_trash', self.fake_move):
+            result = self.review.execute({'token': plan['token'], 'confirmed': True})
+        self.assertEqual(result['moved'], 4)
+        self.assertTrue(self.folder.is_dir())
+        self.assertEqual(self.library.pictures({})['total'], 0)
+
+    def test_selected_file_review_rejects_invalid_or_changed_selection(self):
+        for values in ({'paths': ['missing.png']}, {'paths': ['a.png', 'a.png']}, {'folder': '', 'paths': ['a.png']}, {'paths': '../a.png'}):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                self.review.plan_files(values)
+        plan = self.review.plan_files({'paths': ['other.png']})
+        (self.folder / 'other.png').write_bytes(b'changed')
+        with patch('server.duplicates.move_to_trash') as move, self.assertRaises(ValueError):
+            self.review.execute({'token': plan['token'], 'confirmed': True})
+        move.assert_not_called()
 
     def fake_move(self, path):
         destination = self.fake_trash / path.name

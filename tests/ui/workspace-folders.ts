@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { FIXTURE } from './server';
@@ -31,6 +31,8 @@ export async function checkWorkspaceFolders(page: Page) {
   await expect(viewer.getByRole('button', { name: 'Fit to screen', exact: true })).toBeVisible();
   await page.keyboard.press('z');
   await expect(viewer.getByRole('button', { name: 'View actual size', exact: true })).toBeVisible();
+  await expect(viewer.locator('.image-details')).toBeVisible();
+  await expect(viewer.getByRole('region', { name: 'File details' })).toBeVisible();
   await viewer.getByRole('button', { name: 'Hide image details', exact: true }).click();
   await expect(viewer.locator('.image-details')).toHaveCount(0);
   await viewer.getByRole('button', { name: 'Show image details', exact: true }).click();
@@ -46,10 +48,31 @@ export async function checkWorkspaceFolders(page: Page) {
   await sources.getByRole('button', { name: 'Add folder', exact: true }).click();
   await expect(sources.getByRole('alert')).toContainText('full path');
   await expect(pictures).toHaveCount(FIXTURE.images);
+  const staleStatus = await (await page.request.get('/api/status')).json();
+  let releasePoll!: () => void;
+  let pollDelivered!: () => void;
+  const deliveredPoll = new Promise<void>(resolve => { pollDelivered = resolve; });
+  let heldPoll = false;
+  const pendingPoll = new Promise<void>(resolve => { releasePoll = resolve; });
+  const holdPoll = async (route: Route) => {
+    if (!heldPoll) {
+      heldPoll = true;
+      await pendingPoll;
+      await route.fulfill({ json: staleStatus });
+      pollDelivered();
+    } else await route.continue();
+  };
+  await page.route('**/api/status', holdPoll);
+  await expect.poll(() => heldPoll).toBe(true);
   await sources.getByLabel('Folder path to add').fill(process.env.ORCHARD_UI_EXTRA!);
   await sources.getByRole('button', { name: 'Add folder', exact: true }).click();
   await expect(page.locator('.library-meta > p')).toHaveText('7 images');
   await expect(sources.getByRole('button', { name: 'Browse source extra', exact: true })).toBeVisible();
+  releasePoll();
+  await deliveredPoll;
+  await page.unroute('**/api/status', holdPoll);
+  await page.waitForTimeout(100);
+  expect(await sources.getByRole('button', { name: 'Browse source extra', exact: true }).count()).toBe(1);
   await expect(pictures).toHaveCount(7);
   await page.reload();
   await expect(sources.getByRole('button', { name: 'Browse source extra', exact: true })).toBeVisible();
@@ -57,12 +80,18 @@ export async function checkWorkspaceFolders(page: Page) {
   await expect(pictures).toHaveCount(2);
   await sidebar.getByRole('button', { name: /^All photos/ }).click();
   await expect(pictures).toHaveCount(7);
+  await page.getByRole('button', { name: /^Open red/ }).first().click();
+  await expect(viewer.locator('.image-details')).toBeVisible();
+  await expect(viewer.getByText('Also saved in 1 other place', { exact: true })).toBeVisible();
+  await expect(viewer.locator('.file-list')).toContainText('red');
+  await viewer.getByRole('button', { name: 'Close image', exact: true }).click();
+  await expect(viewer).not.toBeVisible();
   const box = page.getByRole('textbox', { name: 'Search images', exact: true });
   await box.fill('copper'); await box.press('Enter');
   await expect(pictures).toHaveCount(1);
   await pictures.first().click();
   await expect(viewer.getByRole('heading', { level: 1 })).toHaveText('copper.png');
-  await viewer.getByText('Details', { exact: true }).click();
+  await expect(viewer.locator('.image-details')).toBeVisible();
   await expect(viewer.getByText(join(realpathSync(process.env.ORCHARD_UI_EXTRA!), 'copper.png'), { exact: true })).toBeVisible();
   await expect(viewer.locator('.image-stage img')).toBeVisible();
   expect(await viewer.locator('.image-stage img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);

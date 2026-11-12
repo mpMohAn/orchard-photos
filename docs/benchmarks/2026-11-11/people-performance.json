@@ -1,0 +1,12 @@
+{
+  "images": 50,
+  "wallSecondsIncludingPauseAndRestart": 7.460561735002557,
+  "galleryLatencyMedianMs": 4.442454999662004,
+  "galleryLatencyP95Ms": 5.7190581006580015,
+  "sampledPeakRSSMB": 169.7578125,
+  "sampledCPUPercentPeak": 95.1,
+  "pauseResumeVerified": true,
+  "restartProgressPreserved": true,
+  "groups": 1,
+  "limitations": "Public OpenCV sample brightness variants. Measures generated-library responsiveness, not representative face accuracy or production-library throughput."
+}

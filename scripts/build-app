@@ -5,6 +5,7 @@ Run it with Python 3.13 on the system it builds for, Intel/Apple Silicon macOS o
 Python running it. The app is written to build/, and needs no Python or terminal to run."""
 import argparse
 import hashlib
+import importlib.metadata
 import json
 import os
 from pathlib import Path
@@ -22,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 APP = json.loads((ROOT / 'app.json').read_text(encoding='utf-8'))
 TEMPLATES = Path(__file__).with_name('app')
 # What the server reads at run time. ROOT in server/ is the folder holding them.
-FILES = ['server', 'dist', 'assets', 'app.json', 'LICENSE']
+FILES = ['server', 'dist', 'assets', 'app.json', 'LICENSE', 'requirements.txt']
 # The Python inside the app: python-build-standalone's on macOS, and python.org's embeddable one on Windows. pip
 # installs the packages with the Python running this script, so its version has to match.
 PYTHON = (3, 13)
@@ -86,9 +87,36 @@ def copy_app(target: Path):
             shutil.copytree(source, target / name, ignore=shutil.ignore_patterns('__pycache__'))
         else:
             shutil.copy2(source, target / name)
+    try:
+        commit = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True, stderr=subprocess.DEVNULL).strip()
+    except (OSError, subprocess.CalledProcessError):
+        commit = None
+    files = {path.relative_to(target).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+             for path in sorted(target.rglob('*')) if path.is_file()}
+    runtime = INTEL_RUNTIME if sys.platform == 'darwin' and platform.machine() == 'x86_64' else RUNTIMES.get(sys.platform)
+    (target / 'BUILD.json').write_text(json.dumps({'app': APP, 'commit': commit, 'architecture': platform.machine(), 'runtime': runtime,
+                                                  'python': list(PYTHON), 'files': files}, indent=2) + '\n', encoding='utf-8')
 
 
-def install_packages(site_packages: Path):
+def install_packages(site_packages: Path, source=None):
+    if source is not None:
+        from packaging.requirements import Requirement
+        versions = {re.sub(r'[-_.]+', '-', item.metadata['Name']).lower(): item.version
+                    for item in importlib.metadata.distributions(path=[str(source)])}
+        for line in (ROOT / 'requirements.txt').read_text().splitlines():
+            if not line.strip() or line.lstrip().startswith('#'):
+                continue
+            requirement = Requirement(line)
+            if requirement.marker and not requirement.marker.evaluate():
+                continue
+            version = versions.get(re.sub(r'[-_.]+', '-', requirement.name).lower())
+            if version is None or version not in requirement.specifier:
+                raise ValueError(f'Cached packages do not satisfy {requirement}.')
+        for native in [*source.rglob('*.so'), *source.rglob('*.dylib')]:
+            subprocess.run(['lipo', str(native), '-verify_arch', platform.machine()], check=True, capture_output=True)
+        shutil.copytree(source, site_packages, dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__'))
+        remove(site_packages, ['bin', *TESTS])
+        return
     subprocess.run([sys.executable, '-m', 'pip', 'install', '--disable-pip-version-check', '--no-compile', '--no-warn-script-location',
                     '--target', str(site_packages), '-r', str(ROOT / 'requirements.txt')], check=True)
     # Command-line tools the packages bring, which the app never runs.
@@ -112,7 +140,7 @@ def oldest_macos(site_packages: Path) -> str:
     return '{}.{}'.format(*max(versions))
 
 
-def build_mac(build: Path) -> Path:
+def build_mac(build: Path, packages_from=None) -> Path:
     app = build / f'{APP["name"]}.app'
     contents = app / 'Contents'
     resources = contents / 'Resources'
@@ -126,7 +154,7 @@ def build_mac(build: Path) -> Path:
         if path.name != MAC_PYTHON:
             path.unlink()
     site_packages = stdlib / 'site-packages'
-    install_packages(site_packages)
+    install_packages(site_packages, source=packages_from)
     copy_app(resources / 'app')
     # Puts the app's folder on Python's path, so the server imports without setting PYTHONPATH.
     (site_packages / f'{APP["slug"]}.pth').write_text(os.path.relpath(resources / 'app', site_packages) + '\n', encoding='utf-8')
@@ -189,7 +217,10 @@ def build_windows(build: Path) -> Path:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, default=ROOT / 'build', help='where to build; the downloads are kept there for next time')
+    parser.add_argument('--packages-from', type=Path, help='reuse a validated local macOS site-packages folder instead of downloading packages')
     args = parser.parse_args()
+    if args.packages_from and (sys.platform != 'darwin' or not args.packages_from.is_dir()):
+        parser.error('--packages-from requires a local macOS site-packages directory')
     if sys.platform not in RUNTIMES or platform.machine() not in MACHINES[sys.platform]:
         sys.exit(f'scripts/build-app builds on Intel/Apple Silicon Macs and Windows x64, not {sys.platform} {platform.machine()}.')
     if sys.version_info[:2] != PYTHON:
@@ -197,7 +228,12 @@ def main():
     build = args.out.resolve()
     # Only what an earlier build made, in case --out names a folder with other files in it.
     remove(build, ['dmg', APP['name'], f'{APP["name"]}.app', *ARTIFACTS.values(), ARTIFACTS['darwin'].replace('arm64', 'x86_64')])
-    artifact = build_mac(build) if sys.platform == 'darwin' else build_windows(build)
+    if args.packages_from:
+        artifact = build_mac(build, packages_from=args.packages_from.resolve())
+    else:
+        artifact = build_mac(build) if sys.platform == 'darwin' else build_windows(build)
+    checksum = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    artifact.with_name(artifact.name + '.sha256').write_text(f'{checksum}  {artifact.name}\n', encoding='utf-8')
     print(f'Built {artifact}, {artifact.stat().st_size / 1e6:.0f} MB')
 
 

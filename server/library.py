@@ -13,9 +13,12 @@ from server import photos
 from server.atlas import Atlas
 from server.cache import connect, preview_path, thumbnail_path, while_open
 from server.duplicates import Duplicates
+from server.faces import People
 from server.groups import Groups
+from server.indexing import InferenceQueue
 from server.layout import Layout
 from server.scanner import FolderUnavailable, ScanCancelled, Scanner, scaled
+from server.searches import Searches, like, parse_query
 from server.semantic import SemanticIndex
 from server.sources import Folders
 
@@ -56,6 +59,7 @@ class Library:
         self.layout = Layout(self.semantic)
         self.groups = Groups(self.directory, self.semantic)
         self.duplicates = Duplicates(self)
+        self.searches = Searches(self)
         # Vectors from another model can't be mixed with MODEL's, so they go with the map and stacks made from them.
         # The vectors go last, so an interrupted clean-up finishes on the next open.
         if self.semantic.has_other_models():
@@ -63,6 +67,8 @@ class Library:
             self.groups.clear()
             self.semantic.discard_other_models()
         self.closed = threading.Event()
+        self.inference = InferenceQueue()
+        self.people = People(self)
         self.scan_lock = threading.Lock()
         self.semantic_lock = threading.Lock()
         self.index_wanted = False
@@ -111,6 +117,7 @@ class Library:
             self.scan_state = {'state': 'error', 'error': 'The folder could not be read completely. Rescan to retry.'}
         finally:
             self.scan_lock.release()
+            self.people.start()
 
     def index(self):
         """Prepare new images for visual search and group near-duplicates. A call made while this runs is folded
@@ -119,9 +126,10 @@ class Library:
         while self.index_wanted and not self.closed.is_set() and self.semantic_lock.acquire(blocking=False):
             try:
                 self.index_wanted = False
-                self.semantic.index(self.closed.is_set)
-                if not self.closed.is_set() and self.groups.update():
-                    self.revision += 1
+                self.semantic.index(self.closed.is_set, self.inference)
+                with self.inference.turn(self.closed.is_set) as active:
+                    if active and self.groups.update():
+                        self.revision += 1
             except Exception:
                 logger.exception('Grouping near-duplicates failed')
             finally:
@@ -153,9 +161,16 @@ class Library:
         if folder:
             where.append('(f.folder=? OR substr(f.folder,1,?)=?)')
             values += [folder, len(folder) + 1, folder + '/']
+        if params.get('person'):
+            where.append('EXISTS (SELECT 1 FROM faces pf JOIN people pp ON pp.id=pf.person WHERE pf.image_id=i.id AND pf.ignored=0 AND (pf.person=? OR pp.name=? COLLATE NOCASE))')
+            values.extend([params['person'], params['person']])
         if params.get('type'):
             where.append('i.mime=?')
             values.append(params['type'])
+        for key, column in (('name', 'f.path'), ('camera', "coalesce(i.camera,'')")):
+            if params.get(key):
+                where.append(f"{column} LIKE ? ESCAPE '!'")
+                values.append(like(params[key]))
         # Dates are the viewer's local days, so the stored UTC times are shifted by their offset before comparing.
         offset = utc_offset(params)
         for key, operator in [('from', '>='), ('to', '<=')]:
@@ -217,6 +232,10 @@ class Library:
         if order not in {'newest', 'oldest', 'name-asc', 'name-desc', 'size-asc', 'size-desc'}:
             raise ValueError('Choose a valid image order.')
         query = params.get('q', '').strip()[:1000]
+        query, operators = parse_query(query)
+        extra_where, extra_values = self.filters({**operators, 'tz': params.get('tz', '0')})
+        where += extra_where[1:]
+        values += extra_values
         reference = params.get('similar', '')
         group = params.get('group', '')
         if (reference and not IMAGE_ID.fullmatch(reference)) or (group and not IMAGE_ID.fullmatch(group)):
@@ -228,7 +247,7 @@ class Library:
             return {'items': [dict(row) for row in rows], 'total': len(rows), 'offset': 0, 'hasMore': False}
         offset = max(0, int(params.get('offset', '0')))
         limit = min(MAX_PAGE, max(1, int(params.get('limit', str(PAGE_SIZE)))))
-        visual = bool(image_bytes or reference or (query and params.get('mode') == 'visual'))
+        visual = bool(image_bytes or reference or (query and params.get('mode') in {'visual', 'hybrid'}))
         if not visual:
             for word in query.split():
                 where.append("f.path LIKE ? ESCAPE '\\'")
@@ -241,6 +260,10 @@ class Library:
                           reverse=order == 'name-desc')
             elif order.startswith('size-'):
                 rows.sort(key=lambda row: (row['size'], row['id']), reverse=order == 'size-desc')
+        elif query and params.get('mode') == 'hybrid' and not image_bytes and not reference:
+            if order != 'newest':
+                raise ValueError('Combined search results use relevance order.')
+            rows = self.hybrid(query, where, values)
         else:
             if order != 'newest':
                 raise ValueError('Visual search results use relevance order.')
@@ -253,6 +276,33 @@ class Library:
             rows.sort(key=lambda row: (row['group'] == own, ranking[row['id']]), reverse=True)
         return {'items': [dict(row) for row in rows[offset:offset + limit]], 'total': len(rows), 'offset': offset,
                 'hasMore': offset + limit < len(rows)}
+
+    def hybrid(self, query, where, values):
+        """Combine thresholded semantic matches with bounded filename/camera evidence."""
+        lexical_where, lexical_values = list(where), list(values)
+        for word in query.split():
+            lexical_where.append("(f.path LIKE ? ESCAPE '!' OR coalesce(i.camera,'') LIKE ? ESCAPE '!')")
+            lexical_values += [like(word), like(word)]
+        lexical = {row['id']: row for row in self.tiles(lexical_where, lexical_values, collapse=False)}
+        ranking = {}
+        if self.semantic.status()['indexed']:
+            self.require_search()
+            ranking = dict(self.semantic.search(text=query))
+        candidates = {row['id']: row for row in self.tiles(where, values, collapse=False) if row['id'] in ranking}
+        candidates.update(lexical)
+        def score(row):
+            bonus = .18 if row['id'] in lexical else 0
+            if Path(row['path']).stem.casefold() == query.casefold():
+                bonus += .08
+            return ranking.get(row['id'], 0) + bonus
+        ranked = sorted(candidates.values(), key=lambda row: (-score(row), row['path'].casefold(), row['id']))
+        groups = set()
+        result = []
+        for row in ranked:
+            if row['group'] not in groups:
+                result.append(row)
+                groups.add(row['group'])
+        return result
 
     def timeline(self, params):
         """How many tiles the date-ordered grid shows in each month, newest first, in the viewer's time zone: the

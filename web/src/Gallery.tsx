@@ -21,7 +21,7 @@ export interface GalleryHandle {
 }
 
 /** The images in justified rows, each at its own shape. With `sections`, for date order, each month starts under its own heading. */
-export default function Gallery({ items, sections, onOpen, ref, selecting = false, marked, onToggle }: { items: Picture[]; sections: boolean; onOpen: (index: number) => void; ref?: React.Ref<GalleryHandle>; selecting?: boolean; marked?: Set<string>; onToggle?: (id: string) => void }) {
+export default function Gallery({ items, sections, onOpen, ref, selecting = false, marked, onToggle }: { items: Picture[]; sections: boolean; onOpen: (index: number) => void; ref?: React.Ref<GalleryHandle>; selecting?: boolean; marked?: Set<string>; onToggle?: (id: string, range?: boolean) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   // Visible band in gallery coordinates, snapped to STEP so scrolling re-renders only when it crosses a step.
@@ -48,7 +48,7 @@ export default function Gallery({ items, sections, onOpen, ref, selecting = fals
     return () => { removeEventListener('scroll', schedule); removeEventListener('resize', schedule); cancelAnimationFrame(frame); };
   }, []);
   // Matches --gap in styles.css, which the loading skeleton uses.
-  const gap = width < 560 ? 4 : 8;
+  const gap = 4;
   const target = width < 560 ? ROW * .55 : width < 900 ? ROW * .8 : ROW;
   const { positions, headings, height } = useMemo(() => {
     const positions: React.CSSProperties[] = [];
@@ -60,12 +60,12 @@ export default function Gallery({ items, sections, onOpen, ref, selecting = fals
     // Lays out the pending row: scaled to fill the width, or at the target height if it is the last of its run.
     const flush = (last: boolean) => {
       if (!row.length) return;
-      const tall = Math.min(last ? target : Infinity, fill(row));
+      const tall = Math.min(last ? target : Infinity, fill(row), Math.max(48, ...row.map(tile => items[tile.index].height)));
       let x = 0;
       row.forEach(({ index, ratio }, place) => {
         const left = Math.round(x);
         x += ratio * tall;
-        const full = !last || tall < target;
+        const full = Math.abs(tall - fill(row)) < .5;
         positions[index] = { left, top, height: tall, width: (place === row.length - 1 && full ? width : Math.round(x)) - left };
         x += gap;
       });
@@ -116,13 +116,13 @@ export default function Gallery({ items, sections, onOpen, ref, selecting = fals
     })}
   </div>;
 }
-const Tile = memo(function Tile({ item, index, style, onOpen, selecting, marked, onToggle }: { item: Picture; index: number; style: React.CSSProperties; onOpen: (index: number) => void; selecting: boolean; marked: boolean; onToggle?: (id: string) => void }) {
+const Tile = memo(function Tile({ item, index, style, onOpen, selecting, marked, onToggle }: { item: Picture; index: number; style: React.CSSProperties; onOpen: (index: number) => void; selecting: boolean; marked: boolean; onToggle?: (id: string, range?: boolean) => void }) {
   const [failed, setFailed] = useState(false);
   const name = fileName(item.path);
   const label = item.members > 1 ? `Open ${name} and ${plural(item.members - 1, 'near-duplicate')}` : `Open ${name}`;
-  return <button className="picture" style={style} data-selected={marked || undefined} onClick={() => selecting ? onToggle?.(item.id) : onOpen(index)} aria-pressed={selecting ? marked : undefined} aria-label={selecting ? `Select ${name}` : label} title={item.path}>
-    {failed ? <span className="missing">Preview unavailable</span> : <img src={imageUrl(item.id)} alt={name} decoding="async" onDragStart={dragImage(item.id)} onError={() => setFailed(true)} />}
-    {selecting && <span className="selection-mark" aria-hidden="true">{marked && <Check />}</span>}
+  return <div className="photo-tile" data-small={item.width < 64 || item.height < 64 || undefined} style={style}><button className="picture" data-image-id={item.id} data-selected={marked || undefined} onClick={event => (selecting || event.shiftKey) && onToggle ? onToggle(item.id, event.shiftKey) : onOpen(index)} aria-pressed={selecting ? marked : undefined} aria-label={selecting ? `Select ${name}` : label} title={item.path}>
+    {failed ? <span className="missing">Preview unavailable</span> : <img style={{ maxWidth: `min(100%, ${item.width}px)`, maxHeight: `min(100%, ${item.height}px)` }} src={imageUrl(item.id)} alt={name} decoding="async" onDragStart={dragImage(item.id)} onError={() => setFailed(true)} />}
+
     {item.members > 1 && <span className="members" aria-hidden="true"><Layers />{item.members.toLocaleString()}</span>}
-  </button>;
+  </button>{onToggle && <button className="photo-select" data-selecting={selecting || undefined} aria-label={`${marked ? 'Deselect' : 'Select'} ${name}`} aria-pressed={marked} onClick={event => onToggle(item.id, event.shiftKey)}><Check /></button>}</div>;
 });
