@@ -15,6 +15,7 @@ from server.cache import connect, preview_path, thumbnail_path, while_open
 from server.duplicates import Duplicates
 from server.faces import People
 from server.groups import Groups
+from server.indexing import InferenceQueue
 from server.layout import Layout
 from server.scanner import FolderUnavailable, ScanCancelled, Scanner, scaled
 from server.searches import Searches, like, parse_query
@@ -66,6 +67,7 @@ class Library:
             self.groups.clear()
             self.semantic.discard_other_models()
         self.closed = threading.Event()
+        self.inference = InferenceQueue()
         self.people = People(self)
         self.scan_lock = threading.Lock()
         self.semantic_lock = threading.Lock()
@@ -124,9 +126,10 @@ class Library:
         while self.index_wanted and not self.closed.is_set() and self.semantic_lock.acquire(blocking=False):
             try:
                 self.index_wanted = False
-                self.semantic.index(self.closed.is_set)
-                if not self.closed.is_set() and self.groups.update():
-                    self.revision += 1
+                self.semantic.index(self.closed.is_set, self.inference)
+                with self.inference.turn(self.closed.is_set) as active:
+                    if active and self.groups.update():
+                        self.revision += 1
             except Exception:
                 logger.exception('Grouping near-duplicates failed')
             finally:

@@ -1,11 +1,12 @@
 """Opt-in local face detection, embeddings, and editable per-workspace people."""
+from contextlib import nullcontext
 import hashlib
 import io
 import json
 import os
 import secrets
 import threading
-import time
+import unicodedata
 import urllib.request
 
 import numpy as np
@@ -27,7 +28,7 @@ class FaceEncoder:
         self.directory = directory
         self.detector = self.recognizer = None
 
-    def load(self, cancelled):
+    def load(self, cancelled, resource=None):
         import onnxruntime as ort
 
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -65,7 +66,10 @@ class FaceEncoder:
         options.log_severity_level = 3
         options.add_session_config_entry('session.intra_op.allow_spinning', '0')
         options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-        self.detector, self.recognizer = [ort.InferenceSession(str(path), options, providers=['CPUExecutionProvider']) for path in paths]
+        with resource.turn(cancelled) if resource else nullcontext(True) as active:
+            if not active:
+                return False
+            self.detector, self.recognizer = [ort.InferenceSession(str(path), options, providers=['CPUExecutionProvider']) for path in paths]
         return True
 
     def encode(self, original):
@@ -160,6 +164,7 @@ class People:
             total = db.execute('SELECT count(*) FROM images').fetchone()[0]
             groups = [dict(row) for row in db.execute('''SELECT p.id,p.name,count(DISTINCT f.image_id) AS photos,min(f.id) AS cover
                 FROM people p JOIN faces f ON f.person=p.id WHERE f.ignored=0 GROUP BY p.id ORDER BY photos DESC,p.id''')]
+            groups.sort(key=lambda person: (not bool(person['name'].strip()), person['name'].casefold(), -person['photos'], person['id']))
             return {'enabled': self.enabled, 'paused': self.paused, 'state': self.state, 'error': self.error, 'processed': processed, 'total': total, 'people': groups}
 
     def start(self):
@@ -180,13 +185,13 @@ class People:
                 interrupted = False
                 return
             self.state, self.error = 'loading', ''
-            if not encoder.load(cancelled) or cancelled():
+            if not encoder.load(cancelled, self.library.inference) or cancelled():
                 return
             self.state = 'indexing'
             while not cancelled():
-                # Yield to the existing visual index and folder scans.
-                if self.library.semantic_lock.locked() or self.library.scan_lock.locked() or self.library.layout.status()['state'] == 'computing':
-                    time.sleep(.25)
+                if self.library.scan_lock.locked() or self.library.layout.status()['state'] == 'computing':
+                    self.state = 'waiting'
+                    self.library.closed.wait(.1)
                     continue
                 with connect(self.library.directory) as db:
                     row = db.execute('SELECT id FROM images WHERE id NOT IN (SELECT image_id FROM faces_processed) ORDER BY id LIMIT 1').fetchone()
@@ -202,7 +207,12 @@ class People:
                     stream.seek(0)
                     with Image.open(stream) as image:
                         image.draft('RGB', (1280, 1280))
-                        found = encoder.encode(image)
+                        self.state = 'waiting'
+                        with self.library.inference.turn(cancelled) as active:
+                            if not active:
+                                break
+                            self.state = 'indexing'
+                            found = encoder.encode(image)
                 with self.lock, connect(self.library.directory) as db:
                     if cancelled():
                         break
@@ -211,7 +221,6 @@ class People:
                     db.execute('INSERT OR IGNORE INTO faces_processed VALUES (?)', (image_id,))
                 if found:
                     self.library.revision += 1
-                time.sleep(.05)
             if not cancelled():
                 self.state = 'ready'
                 interrupted = False
@@ -239,18 +248,50 @@ class People:
 
     def members(self, person):
         with self.lock, connect(self.library.directory, rows=True) as db:
-            return [dict(row) for row in db.execute('''SELECT id,image_id,box FROM faces WHERE person=? AND ignored=0
-                AND image_id IN (SELECT id FROM images) ORDER BY image_id,id''', (person,))]
+            return [dict(row) for row in db.execute('''SELECT f.id,f.image_id,f.box,f.person,p.name FROM faces f JOIN people p ON p.id=f.person
+                WHERE f.person=? AND f.ignored=0 AND f.image_id IN (SELECT id FROM images) ORDER BY f.image_id,f.id''', (person,))]
 
     def crop(self, face):
         with self.lock, connect(self.library.directory) as db:
             row = db.execute('SELECT crop FROM faces WHERE id=? AND ignored=0', (face,)).fetchone()
             return row[0] if row else None
 
+
+    @staticmethod
+    def _merge_groups(db, source, target):
+        if source != target:
+            db.execute('UPDATE faces SET person=? WHERE person=?', (target, source))
+            db.execute('DELETE FROM people WHERE id=?', (source,))
+
+    @staticmethod
+    def _named_groups(db, value):
+        if not isinstance(value, str):
+            raise ValueError('Use a name of 1–80 characters.')
+        name = ' '.join(value.split())
+        if not 1 <= len(name) <= 80:
+            raise ValueError('Use a name of 1–80 characters.')
+        key = unicodedata.normalize('NFKC', name).casefold()
+        matches = [person for person, stored in db.execute('SELECT id,name FROM people ORDER BY id')
+                   if unicodedata.normalize('NFKC', ' '.join(stored.split())).casefold() == key]
+        return name, matches
+
+    @classmethod
+    def _name_group(cls, db, source, value):
+        if not isinstance(source, str) or not db.execute('SELECT 1 FROM people WHERE id=?', (source,)).fetchone():
+            raise ValueError('Choose an existing person.')
+        name, matches = cls._named_groups(db, value)
+        target = source if source in matches or not matches else matches[0]
+        if target == source:
+            db.execute('UPDATE people SET name=? WHERE id=?', (name, target))
+        for group in set([source, *matches]):
+            cls._merge_groups(db, group, target)
+        return target
+
     def update(self, values):
         if not isinstance(values, dict):
             raise ValueError('Choose a supported People action.')
         action = values.get('action')
+        selected_person = None
         if action in {'enable', 'resume'} and not self.compatible:
             raise ValueError('Clear the older face data explicitly before enabling this model version.')
         with self.lock, connect(self.library.directory) as db:
@@ -274,32 +315,40 @@ class People:
                 for table in ('faces', 'people', 'faces_processed'):
                     db.execute(f'DELETE FROM {table}')
             elif action == 'name':
-                name = values.get('name')
-                if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
-                    raise ValueError('Use a name of 1–80 characters.')
-                db.execute('UPDATE people SET name=? WHERE id=?', (name.strip(), values.get('person')))
+                selected_person = self._name_group(db, values.get('person'), values.get('name'))
             elif action == 'merge':
                 source, target = values.get('source'), values.get('target')
                 if source == target or db.execute('SELECT count(*) FROM people WHERE id IN (?,?)', (source, target)).fetchone()[0] != 2:
                     raise ValueError('Choose two different people.')
-                db.execute('UPDATE faces SET person=? WHERE person=?', (target, source))
-                db.execute('DELETE FROM people WHERE id=?', (source,))
+                self._merge_groups(db, source, target)
+                selected_person = target
             elif action in {'separate', 'ignore', 'assign'}:
                 face = values.get('face')
                 if not isinstance(face, str) or not db.execute('SELECT 1 FROM faces WHERE id=? AND ignored=0', (face,)).fetchone():
                     raise ValueError('Choose a detected face.')
                 if action == 'assign':
+                    scope = values.get('scope', 'face')
+                    if not isinstance(scope, str) or scope not in {'face', 'group'}:
+                        raise ValueError('Choose whether to apply this to a face or its group.')
+                    source = db.execute('SELECT person FROM faces WHERE id=?', (face,)).fetchone()[0]
                     person = values.get('person')
                     if person:
                         if not isinstance(person, str) or not db.execute('SELECT 1 FROM people WHERE id=?', (person,)).fetchone():
                             raise ValueError('Choose an existing person.')
+                        if scope == 'group':
+                            self._merge_groups(db, source, person)
+                    elif scope == 'group':
+                        person = self._name_group(db, source, values.get('name'))
                     else:
-                        name = values.get('name')
-                        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
-                            raise ValueError('Use a name of 1–80 characters.')
-                        person = secrets.token_hex(8)
-                        db.execute('INSERT INTO people(id,name) VALUES (?,?)', (person, name.strip()))
-                    db.execute('UPDATE faces SET person=? WHERE id=?', (person, face))
+                        name, matches = self._named_groups(db, values.get('name'))
+                        if matches:
+                            person = self._name_group(db, matches[0], name)
+                        else:
+                            person = secrets.token_hex(8)
+                            db.execute('INSERT INTO people(id,name) VALUES (?,?)', (person, name))
+                    if scope == 'face':
+                        db.execute('UPDATE faces SET person=? WHERE id=?', (person, face))
+                    selected_person = person
                 elif action == 'ignore':
                     db.execute('UPDATE faces SET ignored=1,vector=NULL,crop=NULL WHERE id=?', (face,))
                 else:
@@ -318,4 +367,7 @@ class People:
         self.library.revision += 1
         if action in {'enable', 'resume'}:
             self.start()
-        return self.status()
+        result = self.status()
+        if selected_person:
+            result['selectedPerson'] = selected_person
+        return result

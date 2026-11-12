@@ -497,6 +497,13 @@ html, body { overflow-x: clip; }
 .person-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--s3); margin: var(--s4) 0; }
 .person-picker .assign-face { display: block; width: 96px; height: 96px; border-radius: 50%; margin: var(--s4) auto; }
 .person-picker input { min-width: 0; max-width: 100%; min-height: var(--control); padding: var(--s3); background: transparent; border: 1px solid var(--line); border-radius: var(--control-radius); }
+.face-assignment, .person-current { display: flex; align-items: center; justify-content: center; gap: var(--s1); }
+.face-assignment { min-height: 28px; color: var(--muted); font-weight: 500; }
+.face-assignment[data-named], .person-card .person-current { color: var(--ink); }
+.person-card .person-current { font-size: 12px; }
+.face-assignment svg, .person-current svg { width: 16px; height: 16px; }
+.person-card[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--focus); background: var(--soft); }
+.person-scope { margin-bottom: var(--s4); }
 .person-card:hover { background: var(--soft); }
 .person-card img { width: 120px; height: 120px; object-fit: cover; border-radius: var(--pill); background: var(--soft); }
 .person-card strong { font-weight: 500; overflow-wrap: anywhere; }

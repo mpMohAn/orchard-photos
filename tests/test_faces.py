@@ -83,7 +83,7 @@ class PeopleTests(unittest.TestCase):
             def __init__(self, directory):
                 pass
 
-            def load(self, cancelled):
+            def load(self, cancelled, resource=None):
                 return True
 
             def encode(self, image):
@@ -141,3 +141,55 @@ class PeopleTests(unittest.TestCase):
         with patch.object(self.people, 'start') as start:
             self.people.update({'action': 'name', 'person': person, 'name': 'Family'})
         start.assert_not_called()
+
+
+    def test_names_sort_alphabetically_before_unnamed_groups(self):
+        self.seed()
+        first = self.people.status()['people'][0]['id']
+        face = self.people.members(first)[0]['id']
+        self.people.update({'action': 'separate', 'face': face})
+        groups = self.people.status()['people']
+        self.people.update({'action': 'name', 'person': groups[0]['id'], 'name': 'Zoe'})
+        self.people.update({'action': 'name', 'person': groups[1]['id'], 'name': 'amy'})
+        self.assertEqual([person['name'] for person in self.people.status()['people']], ['amy', 'Zoe', ''])
+
+    def test_reusing_a_name_combines_groups_and_returns_the_selected_identity(self):
+        self.seed()
+        groups = self.people.status()['people']
+        target = groups[0]['id']
+        self.people.update({'action': 'name', 'person': target, 'name': 'Mom'})
+        result = self.people.update({'action': 'name', 'person': groups[1]['id'], 'name': '  mom  '})
+        self.assertEqual(result['selectedPerson'], target)
+        self.assertEqual([(person['name'], person['photos']) for person in result['people']], [('Mom', 3)])
+        self.assertTrue(all(face['name'] == 'Mom' and face['person'] == target for face in self.people.members(target)))
+        self.assertEqual(People(self.library).status()['people'][0]['photos'], 3)
+
+    def test_naming_from_a_face_can_apply_to_its_whole_group(self):
+        self.seed()
+        group = self.people.status()['people'][0]['id']
+        face = self.people.members(group)[0]['id']
+        result = self.people.update({'action': 'assign', 'face': face, 'name': 'Family', 'scope': 'group'})
+        self.assertEqual(result['selectedPerson'], group)
+        self.assertEqual(self.library.pictures({'q': 'person:Family'})['total'], 2)
+        self.assertTrue(all(face['name'] == 'Family' for face in self.people.members(group)))
+
+    def test_matching_an_unnamed_group_collects_all_its_photos(self):
+        self.seed()
+        groups = self.people.status()['people']
+        source, target = groups[0]['id'], groups[1]['id']
+        self.people.update({'action': 'name', 'person': target, 'name': 'Mom'})
+        face = self.people.members(source)[0]['id']
+        result = self.people.update({'action': 'assign', 'face': face, 'person': target, 'scope': 'group'})
+        self.assertEqual(result['selectedPerson'], target)
+        self.assertEqual(len(result['people']), 1)
+        self.assertEqual(self.library.pictures({'person': target})['total'], 3)
+
+    def test_renaming_keeps_manually_separated_faces_separate(self):
+        self.seed()
+        group = self.people.status()['people'][0]['id']
+        self.people.update({'action': 'name', 'person': group, 'name': 'Mom'})
+        face = self.people.members(group)[0]['id']
+        self.people.update({'action': 'separate', 'face': face})
+        self.people.update({'action': 'name', 'person': group, 'name': 'Mom'})
+        self.assertEqual(len(self.people.members(group)), 1)
+        self.assertEqual(len(self.people.status()['people']), 3)

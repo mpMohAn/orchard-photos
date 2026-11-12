@@ -58,6 +58,7 @@ export default function App() {
   const [submitted, setSubmitted] = useState(query);
   const [mode, setMode] = useState<SearchMode>('hybrid');
   const [status, setStatus] = useState<Status | null>(null);
+  const statusRequest = useRef(0);
   const search = status?.library?.search ?? null;
   const visualReady = !!search && searchable(search);
   // Until visual search can answer, typed queries search file names.
@@ -168,6 +169,7 @@ export default function App() {
     return true;
   }, []);
   const applyStatus = useCallback((data: Status) => {
+    statusRequest.current += 1;
     setStatus(data); setOffline(false);
     // A scan that committed changes refreshes the grid in place, or once the viewer closes.
     const mark = data.folder && data.library ? `${data.folder.id}:${data.library.revision}` : '';
@@ -177,7 +179,11 @@ export default function App() {
     previousRevision.current = mark;
   }, []);
   const refreshStatus = useCallback(async () => {
-    try { applyStatus(await request<Status>('/api/status')); } catch { setOffline(true); }
+    const version = statusRequest.current;
+    try {
+      const data = await request<Status>('/api/status');
+      if (version === statusRequest.current) applyStatus(data);
+    } catch { if (version === statusRequest.current) setOffline(true); }
   }, [applyStatus]);
   // Download the search model if needed and prepare the folder; the status line follows along.
   const setUpSearch = useCallback(async () => {
