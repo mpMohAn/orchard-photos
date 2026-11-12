@@ -54,7 +54,12 @@ class IndexingFairnessTests(unittest.TestCase):
         self.encoder.controls = IndexingControls(self.root / 'indexing.json')
         self.library = Library(self.photos, self.root / 'catalog', self.encoder)
         self.library.scan()
-        self.addCleanup(self.library.close)
+        self.addCleanup(self.stop_library)
+
+    def stop_library(self):
+        self.library.close()
+        self.assertTrue(self.wait_for(lambda: not self.library.people.worker_lock.locked()),
+                        'People worker did not stop before temporary catalog cleanup')
 
     @staticmethod
     def wait_for(predicate):
