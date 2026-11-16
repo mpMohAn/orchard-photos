@@ -252,7 +252,11 @@ class Library:
             for word in query.split():
                 where.append("f.path LIKE ? ESCAPE '\\'")
                 values.append('%' + word.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%')
-            rows = list(self.tiles(where, values))
+            collapse = not (params.get('person') or operators.get('person'))
+            rows = list(self.tiles(where, values, collapse=collapse))
+            if not collapse:
+                rows.sort(key=lambda row: row['id'])
+                rows.sort(key=lambda row: row['date'], reverse=True)
             if order == 'oldest':
                 rows.sort(key=lambda row: (row['date'], row['id']))
             elif order.startswith('name-'):

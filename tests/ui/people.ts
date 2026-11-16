@@ -21,6 +21,7 @@ with db:
     for index, person in enumerate(['a', 'a', 'b', 'c']):
         db.execute('INSERT INTO faces VALUES (?,?,?,?,?,?,0)', (str(index + 1) * 24, ids[index], person * 16, '[0,0,1,1]', bytes(512), b'crop'))
     db.executemany('INSERT INTO faces_processed VALUES (?)', [(value,) for value in ids])
+    db.executemany('INSERT OR REPLACE INTO image_groups(image_id,group_id,score) VALUES (?,?,?)', [(value, ids[0], 1) for value in ids[:2]])
 db.close()
 `, directory, JSON.stringify(pictures.map((picture: { id: string }) => picture.id))]);
   const portrait = '<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112"><rect width="112" height="112" fill="#dce8fb"/><circle cx="56" cy="42" r="22" fill="#8094b3"/><ellipse cx="56" cy="102" rx="40" ry="35" fill="#8094b3"/></svg>';
@@ -61,6 +62,11 @@ db.close()
   await picker.getByRole('button', { name: 'Save person', exact: true }).click();
   await expect(picker).not.toBeVisible();
   await expect(view.getByRole('heading', { level: 1 })).toHaveText('Mom');
+  await expect(page.locator('.picture')).toHaveCount(2);
+  await expect(view.getByText('2 photos', { exact: true })).toBeVisible();
+  await expect(page.locator('.face-corrections')).not.toHaveAttribute('open', '');
+  await expect(view.getByText('Review detected faces', { exact: true })).toHaveCount(0);
+  await view.getByText('Correct face matches', { exact: true }).click();
   await expect(page.locator('.face-assignment')).toHaveText(['Mom', 'Mom']);
   releasePoll();
   await deliveredPoll;
@@ -100,6 +106,12 @@ db.close()
   await view.getByLabel('Clear this library’s face data.').check();
   await view.getByRole('button', { name: 'Clear face data', exact: true }).click();
   await expect(view.getByRole('button', { name: 'Enable People', exact: true })).toBeVisible();
+  execFileSync(PYTHON, ['-c', `
+import sqlite3, sys
+from pathlib import Path
+with sqlite3.connect(Path(sys.argv[1]) / 'library.sqlite') as db:
+    db.execute('DELETE FROM image_groups WHERE group_id=?', (sys.argv[2],))
+`, directory, pictures[0].id]);
   await page.getByRole('button', { name: /^All photos/ }).click();
   await page.unrouteAll({ behavior: 'wait' });
   await expect(page.locator('.picture')).toHaveCount(6);

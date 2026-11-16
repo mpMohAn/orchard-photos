@@ -43,6 +43,26 @@ class PeopleTests(unittest.TestCase):
         self.assertEqual(self.people.status()['processed'], 0)
         self.assertFalse((self.root / 'models/faces').exists())
 
+    def test_person_gallery_and_name_filter_include_similar_photos(self):
+        self.seed()
+        person = self.people.status()['people'][0]['id']
+        self.people.update({'action': 'name', 'person': person, 'name': 'Family'})
+        with connect(self.library.directory) as db:
+            db.executemany('INSERT INTO image_groups(image_id,group_id,score) VALUES (?,?,?)',
+                           [(image_id, self.ids[0], 1) for image_id in self.ids[:2]])
+        self.library.revision += 1
+        self.assertEqual(self.library.pictures({})['total'], 2)
+        for params in ({'person': person}, {'q': 'person:"Family"', 'mode': 'hybrid'}):
+            with self.subTest(params=params):
+                result = self.library.pictures(params)
+                self.assertEqual(result['total'], 2)
+                self.assertEqual({row['id'] for row in result['items']}, set(self.ids[:2]))
+                first = self.library.pictures({**params, 'limit': '1'})
+                second = self.library.pictures({**params, 'limit': '1', 'offset': '1'})
+                self.assertTrue(first['hasMore'])
+                self.assertFalse(second['hasMore'])
+                self.assertNotEqual(first['items'][0]['id'], second['items'][0]['id'])
+
     def test_groups_persist_and_names_filter_photos(self):
         self.seed()
         groups = self.people.status()['people']

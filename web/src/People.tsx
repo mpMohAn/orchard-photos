@@ -65,7 +65,7 @@ export default function People({ onOpen }: { onOpen: (picture: Picture) => void 
     setFaces([]); setPictures([]);
     if (!person) return () => controller.abort();
     request<Face[]>(`/api/people/members?person=${person}`, { signal: controller.signal }).then(data => { if (!controller.signal.aborted) setFaces(data); }, e => { if (!controller.signal.aborted) setError((e as Error).message); });
-    request<Results>(`/api/images?person=${person}&limit=80`, { signal: controller.signal }).then(data => { setPictures(data.items); setMore(data.hasMore); }, e => { if (!controller.signal.aborted) setError((e as Error).message); });
+    request<Results>(`/api/images?person=${person}&limit=80`, { signal: controller.signal }).then(data => { if (!controller.signal.aborted) { setPictures(data.items); setMore(data.hasMore); } }, e => { if (!controller.signal.aborted) setError((e as Error).message); });
     return () => controller.abort();
   }, [person, state?.processed, selected?.photos, selected?.name, memberRevision]);
   const update = async (values: object) => {
@@ -118,7 +118,8 @@ export default function People({ onOpen }: { onOpen: (picture: Picture) => void 
       <div className="people-edit"><form onSubmit={event => { event.preventDefault(); void update({ action: 'name', person, name }); }}><label htmlFor="person-name">Name</label><input id="person-name" value={name} maxLength={80} onChange={event => setName(event.target.value)} placeholder="Add a name" /><button className="text-button secondary" disabled={busy || !name.trim()}>Save name</button></form>
         {state.people.length > 1 && <button className="text-button secondary" disabled={busy} onClick={() => setPicker('merge')}>Same person? Merge groups</button>}
       </div>
-      <details className="face-corrections"><summary>Review detected faces</summary><p className="muted">Separate an incorrect match into a new group, or dismiss a false detection.</p><div className="face-review-grid">{faces.map(face => {
+      <p className="muted" role="status">{selected.photos.toLocaleString()} {selected.photos === 1 ? 'photo' : 'photos'}</p>
+      <details key={`${person}:${!!selected.name}`} className="face-corrections"><summary>{selected.name ? 'Correct face matches' : 'Review detected faces'}</summary><p className="muted">{selected.name ? 'These faces are assigned to this person. Change an incorrect match or dismiss a false detection.' : 'Name this group or match it to an existing person.'}</p><div className="face-review-grid">{faces.map(face => {
         const assignedName = selected?.name || face.name || '';
         return <div key={face.id}><img loading="lazy" decoding="async" src={`/api/people/face/${face.id}`} alt="Detected face" /><span className="face-assignment" data-named={!!assignedName || undefined}>{assignedName && <Check />}{assignedName || 'Unnamed person'}</span><button className="text-button" disabled={busy} onClick={() => setPicker(face.id)}>{assignedName ? 'Change person' : 'Name or match person'}</button><button className="text-button" disabled={busy} onClick={() => void update({ action: 'separate', face: face.id })}>Separate face</button><button className="text-button" disabled={busy} onClick={() => void update({ action: 'ignore', face: face.id })}>Not a face</button></div>;
       })}</div></details>
