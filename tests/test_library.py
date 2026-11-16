@@ -256,7 +256,7 @@ class LibraryTests(unittest.TestCase):
     def test_preparing_asked_for_midway_runs_again_afterwards(self):
         runs = []
         # A scan finishing during the first run asks again; that request is folded into a second round.
-        self.library.semantic = SimpleNamespace(index=lambda cancelled: (runs.append(1), len(runs) == 1 and self.library.index()))
+        self.library.semantic = SimpleNamespace(index=lambda cancelled, resource=None: (runs.append(1), len(runs) == 1 and self.library.index()))
         self.library.groups = SimpleNamespace(update=lambda: False)
         self.library.index()
         self.assertEqual(len(runs), 2)

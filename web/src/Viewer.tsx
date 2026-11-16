@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Copy, Download, FolderOpen, Images, Info, ScanSearch, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Details, Filters, Picture, Results } from './types';
-import { Disclosure } from './Panels';
 import { dateLabel, downloadUrl, fileName, filterParams, folderOf, imageUrl, plural, post, request, sizeLabel, typeLabel } from './types';
 
 interface Props {
@@ -17,6 +16,17 @@ const CLIPBOARD_PIXELS = 50_000_000;
 
 export default function Viewer({ items, index, total, hasMore, loadingMore, pageError, rootName, platform, filters, photos, onChange, onClose, onSimilar, onFolder }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const closing = useRef(false);
+  const mounted = useRef(true);
+  const closeViewer = () => {
+    if (closing.current) return;
+    closing.current = true;
+    const node = dialog.current;
+    if (!node || matchMedia('(prefers-reduced-motion: reduce)').matches) { onClose(); return; }
+    const animation = node.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, easing: 'ease-out', fill: 'forwards' });
+    const finish = () => { if (mounted.current) onClose(); };
+    animation.finished.then(finish, finish);
+  };
   const [details, setDetails] = useState<Details | null>(null);
   const [error, setError] = useState('');
   const [failed, setFailed] = useState(false);
@@ -32,6 +42,7 @@ export default function Viewer({ items, index, total, hasMore, loadingMore, page
   const reveal = photos ? 'Show in Photos' : platform === 'darwin' ? 'Show in Finder' : 'Show in folder';
   const RevealIcon = photos ? Images : FolderOpen;
   useEffect(() => {
+    mounted.current = true;
     const node = dialog.current!;
     const focus = document.activeElement as HTMLElement;
     node.showModal();
@@ -39,11 +50,22 @@ export default function Viewer({ items, index, total, hasMore, loadingMore, page
     node.focus();
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { node.close(); document.body.style.overflow = previous; focus?.focus(); };
+    return () => { mounted.current = false; node.close(); document.body.style.overflow = previous; focus?.focus(); };
   }, []);
   useEffect(() => {
     const controller = new AbortController();
     setZoom(false); setFailed(false); setError(''); setDetails(null);
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const source = document.querySelector<HTMLElement>(`.picture[data-image-id="${item.id}"] img`);
+      const preview = dialog.current?.querySelector<HTMLElement>('.preview-image');
+      if (source && preview) {
+        const from = source.getBoundingClientRect(), to = preview.getBoundingClientRect();
+        if (from.width && to.width && to.height) preview.animate([
+          { opacity: .4, transformOrigin: 'top left', transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})` },
+          { opacity: 1, transformOrigin: 'top left', transform: 'translate(0, 0) scale(1)' },
+        ], { duration: 220, easing: 'cubic-bezier(.2,.7,.2,1)' });
+      }
+    }
     request<Details>(`/api/images/${item.id}`, { signal: controller.signal }).then(setDetails).catch(e => { if (e.name !== 'AbortError') setError(e.message); });
     if (items[index + 1]) { const next = new Image(); next.src = imageUrl(items[index + 1].id, 'display'); }
     return () => controller.abort();
@@ -75,7 +97,7 @@ export default function Viewer({ items, index, total, hasMore, loadingMore, page
   const otherDate = item.dated === 'taken' ? file && `Modified ${dateLabel(file.modified, true)}` : details?.taken && `Taken ${dateLabel(details.taken, true)}`;
   const parts = folder ? folder.split('/') : [rootName];
   const crumbs = (parts.length > CRUMBS ? ['…', ...parts.slice(-CRUMBS)] : parts).join(' › ');
-  return <dialog ref={dialog} tabIndex={-1} className="viewer" aria-label="Image viewer" onCancel={onClose} onKeyDown={e => {
+  return <dialog ref={dialog} tabIndex={-1} className="viewer" aria-label="Image viewer" onCancel={event => { event.preventDefault(); closeViewer(); }} onKeyDown={e => {
     if (e.target instanceof HTMLElement && (e.target.isContentEditable || e.target.matches('input, textarea, select'))) return;
     if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'z') { e.preventDefault(); setZoom(value => !value); }
     if (!e.metaKey && !e.ctrlKey && e.key === 'Home') { e.preventDefault(); onChange(0); }
@@ -89,15 +111,15 @@ export default function Viewer({ items, index, total, hasMore, loadingMore, page
     <div className="viewer-layout" data-details={infoOpen || undefined}>
       <header className="viewer-top"><div className="viewer-navigation">
         <button className="icon-button" aria-label="Previous image" title="Previous image" disabled={index === 0 || loadingMore} onClick={() => onChange(index - 1)}><ArrowLeft /></button>
-        <span>{(index + 1).toLocaleString()} / {total.toLocaleString()}</span>
+        <span>{(index + 1).toLocaleString()} / {total.toLocaleString()}</span><h1 className="viewer-filename">{fileName(item.path)}</h1>
         <button className="icon-button" aria-label="Next image" title="Next image" disabled={loadingMore || (index === items.length - 1 && !hasMore)} onClick={() => onChange(index + 1)}><ArrowRight /></button>
       </div><div className="viewer-navigation">
         <button className="icon-button" aria-label={infoOpen ? 'Hide image details' : 'Show image details'} aria-expanded={infoOpen} onClick={() => setInfoOpen(value => !value)}><Info /></button>
         <button className="icon-button" aria-keyshortcuts="Z" aria-label={zoom ? 'Fit to screen' : 'View actual size'} title={zoom ? 'Fit to screen' : 'Actual size'} onClick={() => setZoom(!zoom)}>{zoom ? <ZoomOut /> : <ZoomIn />}</button>
-        <button className="icon-button" aria-label="Close image" title="Close" onClick={onClose}><X /></button>
+        <button className="icon-button" aria-label="Close image" title="Close" onClick={closeViewer}><X /></button>
       </div></header>
       <div className={`image-stage ${zoom ? 'zoomed' : ''}`}>
-        {failed ? <div className="empty"><p>This image could not be shown. The file may have moved or changed.</p><button className="text-button secondary" onClick={() => setFailed(false)}>Retry</button></div> : <img key={item.id} src={imageUrl(item.id, 'display')} alt={fileName(item.path)} onError={() => setFailed(true)} onClick={() => setZoom(!zoom)} />}
+        {failed ? <div className="empty"><p>This image could not be shown. The file may have moved or changed.</p><button className="text-button secondary" onClick={() => setFailed(false)}>Retry</button></div> : <img className="preview-image" key={item.id} width={item.width} height={item.height} src={imageUrl(item.id, 'display')} alt={fileName(item.path)} onError={() => setFailed(true)} onClick={() => setZoom(!zoom)} />}
       </div>
       {items.length > 1 && <nav className="viewer-filmstrip" aria-label="Preview thumbnails">{items.slice(Math.max(0, index - 4), index + 5).map((picture, offset) => {
         const position = Math.max(0, index - 4) + offset;
@@ -105,7 +127,7 @@ export default function Viewer({ items, index, total, hasMore, loadingMore, page
       })}</nav>}
       {infoOpen && <aside className="image-details">
         <div className="detail-summary">
-          <h1 title={fileName(item.path)}>{fileName(item.path)}</h1>
+          <h2 title={fileName(item.path)}>{fileName(item.path)}</h2>
           <p>{item.dated === 'taken' ? 'Taken' : 'Modified'} {dateLabel(item.date, true)}</p>
           <button className="crumbs" title={`${folder || rootName}. Show only this folder`} onClick={() => onFolder(folder)}>{crumbs}</button>
           <p className="numbers">{item.width.toLocaleString()} × {item.height.toLocaleString()} · {sizeLabel(item.size)} · {typeLabel(item.mime)}</p>
@@ -122,12 +144,12 @@ export default function Viewer({ items, index, total, hasMore, loadingMore, page
           <h2>{plural(members.length, 'near-duplicate')}</h2>
           <ul>{members.map((member, place) => <li key={member.id}><button aria-pressed={place === shown} aria-label={`Show ${fileName(member.path)}`} title={member.path} onClick={() => setShown(place)}><img src={imageUrl(member.id)} alt="" decoding="async" /></button></li>)}</ul>
         </section>}
-        {details && <Disclosure summary="Details">
+        {details && <section aria-label="File details"><h3>Details</h3>
           <p className="path">{photos ? `In your ${details.root} library` : file?.original ?? `${details.root}/${item.path}`}</p>
           {otherDate && <p>{otherDate}</p>}
           {details.camera && <p>{details.camera}</p>}
           {!!others.length && <><p>Also saved in {plural(others.length, 'other place')}</p><ul className="file-list">{others.map(other => <li key={other.path}><span className="path">{photos ? fileName(other.path) : other.original ?? other.path}</span><button className="icon-button" aria-label={`${reveal}: ${photos ? fileName(other.path) : other.original ?? other.path}`} title={reveal} onClick={() => show(other.path)}><RevealIcon /></button></li>)}</ul></>}
-        </Disclosure>}
+        </section>}
       </aside>}
     </div>
   </dialog>;

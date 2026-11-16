@@ -69,6 +69,7 @@ export class MapEngine {
   private pinch: { distance: number; x: number; y: number } | null = null;
   private glide = { vx: 0, vy: 0 };
   private reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  private destroyed = false;
 
   constructor(private canvas: HTMLCanvasElement, private stage: HTMLElement, private calls: MapCallbacks) {
     this.ctx = canvas.getContext('2d')!;
@@ -82,6 +83,7 @@ export class MapEngine {
   }
 
   destroy() {
+    this.destroyed = true;
     cancelAnimationFrame(this.frame); clearTimeout(this.settle); clearTimeout(this.hold);
     const s = this.stage;
     s.removeEventListener('wheel', this.wheel);
@@ -98,8 +100,9 @@ export class MapEngine {
 
   resize(width: number, height: number, dpr: number) {
     const first = this.w === 0, before = this.fitK;
-    this.w = width; this.h = height; this.dpr = dpr;
-    this.canvas.width = Math.round(width * dpr); this.canvas.height = Math.round(height * dpr);
+    // Retina windows can otherwise allocate and repaint four or nine times as many pixels.
+    this.w = width; this.h = height; this.dpr = Math.min(dpr, 1.5);
+    this.canvas.width = Math.round(width * this.dpr); this.canvas.height = Math.round(height * this.dpr);
     this.measure();
     if (first && this.points.length) this.fit(false);
     else if (this.points.length) {
@@ -409,7 +412,7 @@ export class MapEngine {
 
   // ---- Frame loop ------------------------------------------------------------------------------
 
-  invalidate() { if (!this.frame) this.frame = requestAnimationFrame(this.tick); }
+  invalidate() { if (!this.destroyed && !this.frame) this.frame = requestAnimationFrame(this.tick); }
 
   private tick = (now: number) => {
     this.frame = 0;
@@ -471,6 +474,7 @@ export class MapEngine {
   private pendingThumbs = false;
 
   private draw() {
+    this.pendingThumbs = false;
     const { ctx, cam, w, h, dpr, points } = this;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
@@ -536,8 +540,8 @@ export class MapEngine {
     const image = new Image(), entry: Thumb = { image, ready: false, shown: 0, used: this.clock };
     this.thumbs.set(id, entry); this.loading++;
     image.decoding = 'async';
-    image.onload = () => { entry.ready = true; entry.shown = performance.now(); this.loading--; this.pendingThumbs = true; this.invalidate(); };
-    image.onerror = () => { this.loading--; };
+    image.onload = () => { if (this.destroyed) return; entry.ready = true; entry.shown = performance.now(); this.loading--; this.pendingThumbs = true; this.invalidate(); };
+    image.onerror = () => { if (this.destroyed) return; this.loading--; this.invalidate(); };
     image.src = imageUrl(id);
     if (this.thumbs.size > MAX_THUMBS) {
       const stale = [...this.thumbs.entries()].filter(([, t]) => t.ready && t.used < this.clock - 1000).sort((a, b) => a[1].used - b[1].used).slice(0, MAX_THUMBS / 4);
@@ -547,11 +551,11 @@ export class MapEngine {
 
   /** Fetch sharp thumbnails for what is on screen, nearest to the middle first. */
   private requestThumbs() {
-    if (this.loading >= MAX_LOADS) { this.pendingThumbs = true; return; }
+    // Network requests wake the renderer on completion. Waiting for them must not spin at 60fps.
+    if (this.loading >= MAX_LOADS) return;
     const cx = this.w / 2, cy = this.h / 2;
     const want = this.order.filter(i => !this.thumbs.has(this.points[i].id)).sort((a, b) => Math.hypot(this.sx[a] - cx, this.sy[a] - cy) - Math.hypot(this.sx[b] - cx, this.sy[b] - cy));
     for (const i of want.slice(0, MAX_LOADS - this.loading)) this.load(this.points[i].id);
-    this.pendingThumbs = want.length > 0;
   }
 
   // ---- Keyboard --------------------------------------------------------------------------------

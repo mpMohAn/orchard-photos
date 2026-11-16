@@ -25,8 +25,10 @@ from server import photos
 from server.diagnostics import LAST_ERROR, report
 from server.indexing import IndexingControls
 from server.library import IMAGE_ID, Library
+from server.login import LoginLaunch
 from server.semantic import Encoder
 from server.updates import Updates
+from server.watcher import FolderChanges
 from server.window import Window, become_app, unavailable
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -79,6 +81,7 @@ class App:
         self.data_dir = Path(data_dir).resolve()
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.indexing = IndexingControls(self.data_dir / 'indexing.json')
+        self.login = LoginLaunch(self.data_dir)
         self.encoder = Encoder(self.data_dir / 'models')
         self.encoder.controls = self.indexing
         self.encoder.cpu_threads = self.indexing.threads
@@ -396,10 +399,32 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if route == ('/api/status', False):
                 self.json(self.app.status())
+            elif route == ('/api/people', False):
+                self.json(self.app.current().people.status())
+            elif route == ('/api/people', True):
+                with self.app._lock:
+                    self.json(self.app.current().people.update(self.form()))
+            elif route == ('/api/people/members', False):
+                self.json(self.app.current().people.members(params.get('person', '')))
+            elif re.fullmatch(r'/api/people/face/[a-f0-9]{24}', url.path) and not post:
+                crop = self.app.current().people.crop(url.path.rsplit('/', 1)[1])
+                if crop is None:
+                    self.json({'error': 'Face unavailable.'}, 404)
+                else:
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'image/webp')
+                    self.send_header('Content-Length', str(len(crop)))
+                    self.send_header('Cache-Control', 'no-store')
+                    self.end_headers()
+                    self.wfile.write(crop)
             elif route == ('/api/diagnostics', False):
                 self.json({'report': report(self.app, f'{APP["name"]} {APP["version"]}')})
             elif route == ('/api/updates', False):
                 self.json(self.app.updates.status())
+            elif route == ('/api/login', False):
+                self.json(self.app.login.status())
+            elif route == ('/api/login', True):
+                self.json(self.app.login.update(self.form()))
             elif route == ('/api/updates', True):
                 self.app.updates.turn(self.form().get('enabled') is True)
                 self.json(self.app.updates.status())
@@ -440,6 +465,33 @@ class Handler(BaseHTTPRequestHandler):
                 if not settings['paused'] and self.app.encoder.downloaded():
                     self.app.prepare()
                 self.json({**settings, 'active_threads': self.app.encoder.cpu_threads})
+            elif route == ('/api/search/suggestions', False):
+                self.json(self.app.current().searches.suggestions(params.get('q', '')))
+            elif route == ('/api/searches', False):
+                self.json(self.app.current().searches.list())
+            elif route == ('/api/trash/review', True):
+                with self.app._lock:
+                    self.json(self.app.current().duplicates.plan_files(self.form()))
+            elif route == ('/api/trash/confirm', True):
+                with self.app._lock:
+                    self.json(self.app.current().duplicates.execute(self.form()))
+            elif route == ('/api/folder/reveal', True):
+                library = self.app.current()
+                if library.photos:
+                    raise ValueError('Use Show in Photos for an Apple Photos image.')
+                folder = self.form().get('folder', '')
+                if not isinstance(folder, str) or Path(folder).is_absolute() or '..' in Path(folder).parts:
+                    raise ValueError('Choose a folder from this workspace.')
+                roots = getattr(library.scanner.source, 'roots', {})
+                path = roots[folder] if folder in roots else library.scanner.source.file(folder) if folder else library.folder
+                path = path.resolve(strict=True)
+                if not path.is_dir() or not any(path.is_relative_to(root) for root in library.roots):
+                    raise ValueError('Choose a folder from this workspace.')
+                reveal(path)
+                self.json({'revealed': True})
+            elif route == ('/api/searches', True):
+                with self.app._lock:
+                    self.json(self.app.current().searches.update(self.form()))
             elif route == ('/api/duplicates', False):
                 self.json(self.app.current().duplicates.list(params))
             elif route == ('/api/duplicates/history', False):
@@ -642,11 +694,21 @@ def main(argv=None):
             sys.exit(str(error))
         if not args.no_watch:
             def watch():
-                pause = WATCH_SECONDS
+                changes = FolderChanges()
+                next_scan = time.monotonic() + WATCH_SECONDS
+                pause = 1
                 while not stopped.wait(pause):
-                    if app.library:
-                        app.library.scan()
-                        pause = max(WATCH_SECONDS, WATCH_LISTING_FACTOR * app.library.stats.get('listed_seconds', 0))
+                    library = app.library
+                    if not library or library.closed.is_set() or library.scan_lock.locked():
+                        continue
+                    started = time.monotonic()
+                    changed = changes.changed(library)
+                    probe_seconds = time.monotonic() - started
+                    if changed or started >= next_scan:
+                        library.scan(retry=True)
+                        next_scan = time.monotonic() + max(WATCH_SECONDS, WATCH_LISTING_FACTOR * library.stats.get('listed_seconds', 0))
+                    # Bound metadata-probe overhead on large or slow folder trees.
+                    pause = max(1, probe_seconds * 50)
             threading.Thread(target=watch, daemon=True).start()
         if app.encoder.downloaded():
             # Load the model before the first search, then index.

@@ -1,0 +1,22 @@
+{
+  "model": "YuNet 2023mar + SFace 2021dec",
+  "cpuThreads": 2,
+  "sample": "OpenCV lena.jpg, three brightness variants",
+  "faceCounts": [
+    1,
+    1,
+    1
+  ],
+  "seconds": [
+    0.16578808700069203,
+    0.046518658000422874,
+    0.037794898002175614
+  ],
+  "medianSeconds": 0.046518658000422874,
+  "matchingCosines": [
+    0.9855474233627319,
+    0.9610901474952698
+  ],
+  "peakProcessMemoryMB": 161.357824,
+  "limitations": "Small public-sample inference smoke, not representative face accuracy."
+}

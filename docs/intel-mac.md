@@ -20,6 +20,36 @@ Use an unused port. Smoke tests generate their own images. `tests/test_lifecycle
 
 For a clone-backed app, run `scripts/install-app build/clone-review` into an empty destination. It refuses to overwrite an existing bundle. This app depends on the clone and its `.venv`; the DMG app is self-contained. Do not run `./orchard` against a working clone environment merely to test a requirements change: it rebuilds `.venv` when requirements change.
 
+## Distribution rehearsal
+
+Build into a separate review destination. `scripts/build-app` writes a SHA-256 sidecar for each artifact and includes `BUILD.json` with the source commit, runtime identity, architecture, and source-file hashes.
+
+A local macOS build can reuse existing packages with `--packages-from /path/to/review/site-packages`. The builder validates the current requirement pins and native architectures before copying. The normal release build continues installing requirements from the pinned requirements file.
+
+Run the packaged rehearsal with the existing Python environment or the bundled interpreter.
+
+```sh
+.venv/bin/python scripts/test-distribution \
+  --app /path/to/copied-review/Orchard.app \
+  --previous-app /path/to/older-review/Orchard.app \
+  --models /path/to/existing-review/models \
+  --out build/distribution-report.json
+```
+
+The rehearsal copies bundles into temporary Applications folders, creates an isolated home and data directory, and generates its own photos. It checks fresh startup with a bare runtime path, upgrades from the previous bundle, and rolls back. Catalog identities, embeddings, saved searches, indexing settings, and originals are checked. Omitting `--previous-app` uses the candidate for both sides, providing a same-build rehearsal. Models are optional and copied for offline vector-preservation checks.
+
+Release automation runs the packaged rehearsal and archives its report with the image and checksum. Testing on an isolated home on this Mac leaves fresh physical-Mac, Gatekeeper, native privacy prompts, and release acceptance outstanding.
+
+## Upgrade and rollback review
+
+1. Quit Orchard and retain the currently working bundle and a backup of its data folder.
+2. Verify the candidate DMG checksum, mount it read-only, and copy the candidate to a separate review destination.
+3. Review it with an isolated `--data-dir` and generated photos first.
+4. After approving replacement, keep the old bundle available while changing to the candidate. Keep the data directory in place.
+5. To roll back, quit the candidate and reopen the retained bundle with the same data directory. The automated rehearsal checks compatibility with the older review bundle used in the test. For future incompatible schema changes, restore the corresponding data backup as well.
+
+The current review build is ad hoc signed. Signing with an Apple distribution identity and notarization require separate release arrangements.
+
 ## Intel Mac manual acceptance checklist
 
 These checks require a logged-in macOS desktop and user review; automated HTTP tests do not establish them. Quit the working app yourself before testing default port 4400. Keep its bundle and data backup available. For isolated tests, launch the review executable with `--port 4499 --data-dir /absolute/path/to/review-data`.

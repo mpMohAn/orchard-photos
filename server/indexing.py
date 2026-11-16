@@ -1,4 +1,5 @@
 """Persistent controls for visual indexing; completed embeddings are never discarded."""
+from contextlib import contextmanager
 import json
 from pathlib import Path
 import threading
@@ -49,3 +50,32 @@ class IndexingControls:
             while self.paused and not cancelled():
                 self.condition.wait(.1)
             return not cancelled()
+
+
+class InferenceQueue:
+    """FIFO compute turns shared by visual and People indexing."""
+    def __init__(self):
+        self.condition = threading.Condition()
+        self.waiters = []
+        self.busy = False
+
+    @contextmanager
+    def turn(self, cancelled):
+        ticket = object()
+        admitted = False
+        with self.condition:
+            self.waiters.append(ticket)
+            while not cancelled() and (self.busy or self.waiters[0] is not ticket):
+                self.condition.wait(.05)
+            if not cancelled():
+                self.busy = True
+                admitted = True
+            self.waiters.remove(ticket)
+            self.condition.notify_all()
+        try:
+            yield admitted
+        finally:
+            if admitted:
+                with self.condition:
+                    self.busy = False
+                    self.condition.notify_all()

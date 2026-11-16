@@ -1,0 +1,6 @@
+{
+  "generatedPoints": 3000,
+  "idleWindowMs": 300,
+  "idleDrawCalls": 0,
+  "limitations": "Synthetic points and held network requests; not a representative library benchmark."
+}

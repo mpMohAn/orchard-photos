@@ -1,7 +1,7 @@
 import app from '../../app.json';
 
 export const APP_NAME = app.name;
-export type SearchMode = 'name' | 'visual';
+export type SearchMode = 'name' | 'visual' | 'hybrid';
 export type View = 'grid' | 'map';
 export const SORTS = [
   { value: 'newest', label: 'Newest first' }, { value: 'oldest', label: 'Oldest first' },

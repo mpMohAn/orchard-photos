@@ -1,0 +1,4 @@
+{
+  "include": ["server", "tests"],
+  "exclude": ["build", "dist", "node_modules", ".venv", ".git", ".serena", "**/__pycache__"]
+}

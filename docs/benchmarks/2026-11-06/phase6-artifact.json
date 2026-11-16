@@ -1,0 +1,14 @@
+{
+  "artifact": "Orchard-mac-x86_64.dmg",
+  "sha256": "d9715e9aea8d1e2c1fcda3ff2d06d14d22d142c7a867e7ea2953b6ffdebf62e0",
+  "bytes": 66383271,
+  "sourceCommit": "3d84c856f1647086165e32fb49ea573763597c3a",
+  "sourceFilesVerified": 29,
+  "signatureVerified": true,
+  "runtime": {
+    "python": "3.13.16",
+    "architecture": "x86_64",
+    "onnxruntime": "1.23.2",
+    "toolkitInitialized": true
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "generatedImages": 6,
+  "roots": 2,
+  "dimensions": [
+    640,
+    480
+  ],
+  "indexed": 6,
+  "descriptionMatches": 3,
+  "searchMode": "hybrid",
+  "metadataMatches": 1,
+  "imageQueryReturnsReferenceFirst": true,
+  "cpuThreads": 2,
+  "originalsUnchanged": true,
+  "downloadsAllowed": false,
+  "modelCache": "copy of existing isolated test models",
+  "limitations": [
+    "Generated images only.",
+    "Small real-inference smoke, not representative-library acceptance."
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "packagedCombinedSearch": true,
+  "packagedImageQuery": true,
+  "freshSetup": true,
+  "upgrade": true,
+  "rollback": true,
+  "catalogPreserved": true,
+  "originalsUnchanged": true,
+  "settingsSentinelPreserved": true,
+  "indexingSettingsPreserved": true,
+  "savedSearchPreserved": true,
+  "preservedVectors": 2,
+  "differentPreviousBundle": true,
+  "generatedImages": 2,
+  "isolatedHomeAndData": true,
+  "downloadsAllowed": false,
+  "limitations": [
+    "Temporary installation paths on this Mac, not a fresh physical Mac or Gatekeeper acceptance.",
+    "No personal photos, native Trash operations, or release publication."
+  ]
+}

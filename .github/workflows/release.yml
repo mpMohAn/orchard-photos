@@ -72,13 +72,19 @@ jobs:
       - name: Packaged server lifecycle
         if: runner.os == 'macOS'
         run: ORCHARD_TEST_LAUNCHER="$LAUNCHER" "$RUNNER_TEMP/${{ matrix.python }}" -I -m unittest discover -s tests -p test_lifecycle.py
+      - name: Fresh setup, upgrade and rollback rehearsal
+        if: runner.os == 'macOS'
+        run: '"$RUNNER_TEMP/${{ matrix.python }}" -I scripts/test-distribution --app "$RUNNER_TEMP/Orchard.app" --models ~/orchard-data/models --out build/${{ matrix.artifact }}.report.json'
       - name: Show the app's log
         if: failure()
         run: cat ${{ matrix.log }}
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ matrix.artifact }}
-          path: build/${{ matrix.artifact }}
+          path: |
+            build/${{ matrix.artifact }}
+            build/${{ matrix.artifact }}.sha256
+            build/${{ matrix.artifact }}.report.json
           if-no-files-found: error
           compression-level: 0
 

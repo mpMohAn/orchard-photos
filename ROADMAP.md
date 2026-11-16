@@ -4,7 +4,17 @@ This is the agreed scope for improving both the native Intel macOS application a
 
 Source: [Original planning conversation](https://chatgpt.com/share/6ae210f5-0158-83e8-bef2-a447f7b37c65), including the original-plan screenshot supplied by the user.
 
-Status recorded on 2026-11-06. Implementation, automated validation, manual acceptance, and release are tracked separately below.
+Status updated on 2026-11-09. Implementation, automated validation, manual acceptance, and release are tracked separately below.
+
+## Approved review update — 2026-11-09
+
+The user asked for a Google Photos-inspired layout, clearer visual search, useful selection/Trash and Finder actions, and a fix for the slow similarity view. The similarity view is retained and renamed **Visual Explore**. It is not a geographic map. Existing architecture, local processing, and compatibility pins are retained.
+
+The review implementation adds prominent sidebar search/explore navigation and search-by-image access, saved-search naming, compact indexing controls, tighter photo spacing, and selection/folder Trash review. Folder-wide review lists all indexed originals in the folder/subfolders, independently of loaded thumbnails, up to 5,000 files per explicit confirmation. The native journaled Trash workflow is extended; no automatic or permanent deletion is added. Personal-photo moves and installation changes were not performed.
+
+The renderer no longer continuously redraws while thumbnails are loading. Retina canvas resolution is capped at 1.5×, atlas sheets decode at most two at a time, and aborted view loads release their bitmaps. A 3,000-point synthetic browser regression records zero idle draw calls over 300 ms with held thumbnail requests. This does not establish real-library frame-rate or first-layout performance. First layout still computes in the background.
+
+Validation passed 100 focused Python tests (API, duplicates, library, searches, layout), frontend lint/type checks and build, and serial browser smoke including light/dark views and 320/375/414/768 px layouts. Ruff is not installed in this environment. Native Trash/Put Back and representative-library performance acceptance remain pending.
 
 ## Product goal
 
@@ -29,7 +39,9 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Current status:** Substantially implemented in PR #2. Intel packaging, lifecycle safeguards, diagnostics, and CI were added. CI passed on Intel Mac, Apple Silicon, Windows, and Linux, alongside lint, web, and UI checks. Isolated desktop tests covered Finder launch, the folder picker, Cmd+Q, window close, user-performed Dock Quit and sleep/wake, restored library identity/counts, and unchanged generated originals.
 
-**Remaining limitations:** Fresh macOS privacy-prompt denial and Photos permission/integration were not verified. Dock cold launch/icon count was not verified. Optional launch-at-login has not been delivered. Desktop testing used a configuration-isolated review bundle, not an untouched release DMG. Merge, installation, and release are separate approval steps.
+**Review follow-up:** Optional launch-at-login is implemented in Info, off by default. It writes a per-bundle/per-data-directory user LaunchAgent only when enabled, for the next graphical login. Disabling removes that agent. Temporary mounted/translocated bundles cannot enable it. Tests use temporary homes and simulated browser responses; the user's login settings were not changed. Real logout/login acceptance remains pending.
+
+**Remaining limitations:** Fresh macOS privacy-prompt denial and Photos permission/integration were not verified. Dock cold launch/icon count was not verified. Desktop testing used a configuration-isolated review bundle, not an untouched release DMG. Merge, installation, and release are separate approval steps.
 
 ## Phase 2 — Intel performance
 
@@ -90,7 +102,11 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Deliverable:** Better photo discovery without uploading personal photos.
 
-**Current status:** Not delivered. Existing SigLIP semantic search and image-to-image matching are baseline functionality.
+**Current status:** Implemented for review on `feature/search-distribution`. Combined search merges the existing thresholded semantic candidates with filename/camera matches and bounded metadata bonuses. Explicit date, year, camera, file type, filename/path, and folder operators narrow the current filters. Search tools provides catalog-derived suggestions and up to 100 named searches per workspace, retaining mode, filters, and order. No cloud dependency was added. Face/person identification remains a separate privacy decision.
+
+**Validation and remaining acceptance:** The 218-test regression suite, frontend build, static checks, and browser smoke passed locally. Generated-data tests cover parsing, literal filenames, stable combined ranking, saved-search persistence, and UI restore/remove flows. A six-image, two-folder offline real-model check passed combined description search, metadata filters, and image matching. The ranking bonuses are heuristic. Representative-library relevance evaluation remains pending.
+
+**2026-11-09 review fix:** Combined search now ranks all matching members before collapsing similar-photo groups. A regression test covers a matching non-cover image, competing semantic matches, and filename fallback. The follow-up passed 77 focused Python tests (search, login, API, duplicates, indexing, workspace), browser smoke, frontend lint/type checks, and the production build. Ruff is unavailable in the current environment; a fresh full-suite result is not claimed. The earlier Intel DMG predates these fixes and must be rebuilt before artifact acceptance.
 
 ## Phase 6 — Distribution
 
@@ -102,15 +118,17 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 **Deliverable:** A tested, distributable Intel Mac application with a safe upgrade path.
 
-**Current status:** Partly implemented. An isolated Intel DMG was built and its runtime, signature, toolkit, and visual-search smoke behavior were checked locally. Intel release-workflow coverage exists. These checks do not establish fresh-install, published-release, or upgrade/rollback acceptance.
+**Current status:** Distribution implementation is ready for review on `feature/search-distribution`. The Intel builder produces an ad hoc signed, self-contained DMG, a SHA-256 sidecar, and a source/runtime manifest. Release automation retains native x86_64 coverage and adds a temporary fresh-setup/upgrade/rollback rehearsal with archived reports. A local cached-package build validates requirement pins and native architectures before reuse.
+
+**Validation and remaining acceptance:** The final 66 MB Intel DMG passed signature, checksum, source-manifest, bundled Python 3.13.16, ONNX Runtime 1.23.2, and toolkit checks. Packaged combined-text and uploaded-image queries passed with real offline models. Fresh-home setup and upgrade/rollback against the older review bundle preserved catalog identities, two embeddings, saved searches, indexing settings, and generated originals. [Artifact evidence](docs/benchmarks/2026-11-06/phase6-artifact.json) and [distribution rehearsal](docs/benchmarks/2026-11-06/phase6-distribution.json) record the results. This tests isolated HOME/data and temporary installation paths on this Mac. Fresh physical-Mac, Gatekeeper, native privacy, published-release, and user-approved replacement acceptance remain pending.
 
 ## Execution and safety rules
 
-1. Continue from this roadmap. Phase 4 duplicate management has a reviewable implementation with native Trash acceptance pending. The next product-development phase is Phase 5 search improvements, followed by Phase 6 distribution. Keep the remaining acceptance items from earlier phases visible.
+1. Continue from this roadmap. Phases 5 and 6 now have reviewable implementations. Prepare the combined review and finish the listed acceptance work before release. Keep earlier gaps, including real login-launch and native Trash/permission acceptance, visible.
 2. Preserve the existing architecture and functionality. Make targeted changes rather than an unsolicited rewrite or broad code reorganization.
 3. Keep the Intel ONNX Runtime 1.23.2 compatibility change until a replacement is explicitly justified and validated with both pinned image and text models. Verify other platforms when dependency changes affect them.
 4. Work on development branches with isolated test builds/data. Do not replace or modify the user's working Orchard installation automatically.
-5. Originals remain read-only by default. Phase 4's explicit, confirmed Trash workflow is the planned exception; it does not authorize background deletion or permanent deletion.
+5. Originals remain read-only by default. The explicit, confirmed duplicate/selection/folder Trash workflow is the approved exception; it does not authorize background deletion or permanent deletion.
 6. Merge, installation/replacement, release publication, personal-photo access, and consequential file actions require the relevant explicit user authorization. Saving this roadmap does not authorize those actions.
 7. Keep development automation separate from the photo app. Use the existing local Codex/ChatGPT setup within plan limits; do not introduce paid APIs, paid runners, or extra-cost services without approval. Batch routine implementation, checks, and reporting to minimize manual handoffs.
 8. Maintain progress against concrete requirements and evidence. Separate implemented, tested, shipped, and unverified work. Do not invent an overall completion percentage or count existing features as newly delivered.
@@ -118,10 +136,10 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 
 ## Current execution order
 
-1. Review Phase 4 duplicate management and complete isolated native Trash/recovery acceptance when authorized.
-2. Phase 5 local search is the next implementation phase.
-3. Phase 6 distribution follows feature validation.
-4. Track remaining Phase 1–3 manual acceptance alongside development. Representative photo access, native permission tests, merge and installation require their applicable authorization.
+1. Review the Phase 5 search implementation and Phase 6 Intel DMG, manifests, checksums, and test reports.
+2. Complete remaining representative-library and native desktop acceptance, including Trash recovery and permission prompts, with the applicable authorization.
+3. Validate the optional launch-at-login setting with a real logout/login before calling the original plan fully complete.
+4. Approve merge, installation/replacement, and release publication separately.
 
 ## Progress summary
 
@@ -131,7 +149,54 @@ Extend `scripts/install-app`, `scripts/build-app`, and `server/window.py`.
 | 2. Intel performance | Baseline, controls, and generated 10,000-image scanner/browser checks verified; representative-library acceptance remains |
 | 3. Modern photo-management UI | Sorting, previews and combined-folder browsing implemented for review; representative-library/native acceptance remains |
 | 4. Duplicate management | Review/confirmation/journal implemented; native Trash and representative-library acceptance pending |
-| 5. Smarter local search | Not delivered |
-| 6. Distribution | Packaging groundwork completed; release acceptance remains |
+| 5. Smarter local search | Combined ranking, metadata filters, suggestions and saved searches implemented for review; representative relevance evaluation pending |
+| 6. Distribution | Final Intel review DMG and isolated setup/upgrade/rollback validated; fresh physical-Mac/Gatekeeper and release acceptance remain |
 
 Update this file as evidence changes. Scope changes must be explicitly approved by the user and recorded here; do not silently replace this plan with a different one.
+
+## Review checkpoint — 2026-11-10
+
+The user approved a closer Google Photos browsing/selection flow and opt-in local People grouping. The selection pass adds thumbnail checkmarks, Shift-click ranges among loaded photos, a top selected-count toolbar, and visible folder-wide selection before Trash review. The previous “Review all photos in this folder for Trash” command has been replaced. Existing native Trash verification/journaling is retained.
+
+People grouping was approved at this checkpoint and implemented in the 2026-11-11 follow-up below. It requires detection, alignment, local face embeddings, editable groups/names, opt-in/pause/clear controls, licensing and Intel validation. Pet grouping, cloud backup/sharing, advanced AI edits, and Locked Folder are not implemented. No installed app or personal-photo data has been modified.
+
+## Preview follow-up — 2026-11-11
+
+Small originals keep their native display dimensions in the gallery, and rows containing only small images stay compact. Tiny tile selection controls leave the photo centre available for opening. The viewer starts with details collapsed, uses a dark photo stage, animates from the thumbnail where available, fades between images, and fades on close. Reduced-motion preference bypasses transitions. Build, ESLint and TypeScript checks pass. Browser regression covers 48-pixel originals, selection, preview navigation and details controls. The People implementation and Intel validation are recorded below. The earlier DMG predates these changes.
+
+
+## People implementation — 2026-11-11
+
+The approved local People feature is implemented. The sidebar opens a dedicated People page with circular face portraits, names and photo counts, a person gallery, editable names, group merging, individual-face separation and false-detection dismissal. Named people can be found using `person:"Name"` in the main search. The layout follows the supplied Google Photos reference and adapts to narrow windows.
+
+Processing is opt-in per library. Setup downloads approximately 39 MB of hash-verified YuNet and SFace models. Detection, alignment and embeddings run locally through the existing Intel ONNX Runtime 1.23.2 dependency, with two CPU threads and one image processed at a time. Work yields to scanning and visual indexing. Pause/resume and per-image checkpoints preserve progress across restarts. Explicit confirmed clearing removes this library's face crops, embeddings, names and groups and turns processing off. An incompatible model version preserves existing data and requires explicit clearing before re-enabling.
+
+Validation includes 112 focused Python tests, frontend lint/type/build checks, responsive People browser coverage, real inference and named-search checks using two public OpenCV sample images, and a 50-image public-sample-variant Intel workload. The workload completed in 7.46 seconds including pause and restart, with gallery API median 4.44 ms, p95 5.72 ms and sampled peak server memory 169.76 MB. [Inference report](docs/benchmarks/2026-11-11/people-inference.json) and [performance report](docs/benchmarks/2026-11-11/people-performance.json) record the scope and limitations.
+
+Representative-library accuracy, large People collections and native user acceptance remain open. Automatic grouping is conservative and can miss or split matches. Correction controls are part of the delivered workflow. Pet grouping and the other previously excluded features remain outside this implementation.
+
+
+The final performance follow-up keeps model sessions unloaded when naming or correcting completed groups and skips model loading on scans with no pending photos. A dedicated regression test verifies that naming does not restart processing. Eight People tests pass. GitHub CI also validates the complete platform suites, lint, web build and browser flow. Native Trash simulation runs on supported POSIX test platforms, while Windows retains coverage for the other features and the browser checks its available folder-reveal action.
+
+
+## Review fixes — 2026-11-11
+
+The user requested direct face naming/matching, prompt updates for new downloads, and the right-hand preview details/duplicate information. Each detected face now has **Name or match person**, opening a portrait-and-name picker for existing groups or a new name. Group-level **Same person? Merge groups** uses the same visual picker. Assignment updates the existing face record and invalidates person-photo caches.
+
+Regular-folder monitoring now probes directory metadata between periodic full reconciliations, debounces changes, discovers newly created subfolders, and retries incomplete downloads after their file metadata changes. Continuous additions have a bounded debounce, and the index directory is excluded from probes. Probe frequency adapts to the cost of checking large/slow folder trees. The generated-file normal-entry test observed 0.951 seconds for a new image, 2.067 seconds after a partial download completed, and 1.995 seconds for a new subfolder. These measurements cover a small local generated library. Apple Photos retains periodic reconciliation.
+
+Preview details now open by default. File metadata and exact-duplicate locations are visible without expanding another disclosure, alongside the existing near-duplicate previews. The animated dark viewer and native-size small-image rendering remain available. Browser tests cover default details, exact duplicate locations, individual face assignment/new-name submission, group matching, and responsive layouts. Focused Python regression and lint/build checks pass. A new Intel review artifact is required for these changes.
+
+
+The follow-up catches downloads that finish before the next metadata probe by comparing their current metadata with the failed scan's recorded size and modification time. A regression test covers this timing window. The final generated-library check observed a live gallery refresh in 3.107 seconds without reloading the browser. Its API checks measured 3.309 seconds for a new image, 6.93 seconds after download completion, and 2.792 seconds for a new subfolder during concurrent validation. The updated folder-update report records these results.
+
+
+## People naming and indexing follow-up — 2026-11-12
+
+The user reported missing assignment feedback after naming, unsorted named/unnamed people, and naming that left matching photos in separate groups. Face cards now show the assigned name and a checkmark. The person picker marks the current person. Named groups are alphabetized in both views with unnamed groups last. Naming an unnamed detected group defaults to all photos in that group. Reusing a normalized existing name combines its groups and returns the canonical person ID, keeping the selected gallery synchronized. Named-group corrections default to an individual face, with an explicit whole-group option. Manually separated groups remain separate unless the user names or matches them together.
+
+Late status responses are prevented from reverting newer names or folder selections. Member refreshes are canceled/reissued after assignment changes. Browser regressions use actual People API actions against synthetic face rows, including delayed older responses, alphabetical order, selected-state feedback and group-name reuse.
+
+The first performance changes use FIFO compute turns for each visual batch and each People image. Visual pause/checkpoint waits occur outside the shared compute turn. Face session creation waits for a turn after downloads complete. The fixed 50 ms per-image People sleep is removed, while face inference retains its two-thread runtime configuration. Checkpoints, cancellation, hashing and model identities are retained. A deterministic test proves People can progress while visual indexing is paused and receive a turn between visual batches.
+
+All 254 Python tests and browser smoke passed, as did build/lint/type checks. A single preliminary 50-image public-sample comparison measured 8.853 seconds for the previous bundled build and 5.514 seconds for the development source, including pause/restart. Sampled peak CPU rose from 91.5% to 146.2%, while gallery API p95 was 8.17 ms and 6.96 ms respectively. This uses small public-image variants and different Python patch versions, so it is a smoke comparison. Final packaged comparison and representative-library throughput/accuracy acceptance remain to be recorded. [Baseline](docs/benchmarks/2026-11-12/people-scheduling-baseline.json) and [source candidate](docs/benchmarks/2026-11-12/people-scheduling-source.json) contain the results. The [research report](<reports/Faster Orchard indexing on Intel Macs.md>) provides the remaining experiment plan.

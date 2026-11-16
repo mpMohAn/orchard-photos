@@ -107,14 +107,27 @@ export default function Embedding({ root, filters, highlight, search, model, sca
       if (versions !== shown.current.sheets) {
         let loaded = 0;
         sheets = [];
-        await Promise.all(needed.map(n => new Promise<void>((resolve, reject) => {
-          const image = new Image();
-          // Bitmaps stay decoded; a plain image can be evicted from the browser's cache and re-decoded mid-zoom.
-          image.onload = () => { setSheetsLoaded(++loaded / needed.length); createImageBitmap(image).then(bitmap => { sheets![n] = bitmap; resolve(); }, reject); }; image.onerror = () => reject(new Error('The map images could not load. Retry, or rescan the folder.'));
-          image.src = `/api/atlas/${n}?v=${result.sheets[n]}`;
-        })));
+        const queue = [...needed];
+        try {
+          await Promise.all(Array.from({ length: Math.min(2, needed.length) }, async () => {
+            while (queue.length) {
+              controller.signal.throwIfAborted();
+              const n = queue.shift()!;
+              const response = await fetch(`/api/atlas/${n}?v=${result.sheets[n]}`, { signal: controller.signal });
+              if (!response.ok) throw new Error('The explore images could not load. Retry, or rescan the folder.');
+              const bitmap = await createImageBitmap(await response.blob());
+              if (controller.signal.aborted) { bitmap.close(); controller.signal.throwIfAborted(); }
+              sheets![n] = bitmap;
+              setSheetsLoaded(++loaded / needed.length);
+            }
+          }));
+        } catch (error) {
+          controller.abort();
+          sheets.forEach(sheet => sheet.close());
+          throw error;
+        }
       }
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) { sheets?.forEach(sheet => sheet.close()); return; }
       const map = engine.current!;
       if (sheets) map.setSheets(sheets);
       // The same folder refreshed by a scan glides instead of restarting.
@@ -142,21 +155,21 @@ export default function Embedding({ root, filters, highlight, search, model, sca
 
   const empty = phase === 'ready' && data && data.points.length === 0;
   return <div className="map-stage" ref={stage} aria-busy={phase === 'loading'}>
-    <canvas ref={canvas} className="map-canvas" tabIndex={0} role="application" aria-label="Image map. Similar images sit close together. Arrow keys move, plus and minus zoom, zero shows everything, Enter selects the image nearest the middle. Press and hold an image, then drag it to the search bar to find similar images." onKeyDown={onKeyDown} />
+    <canvas ref={canvas} className="map-canvas" tabIndex={0} role="application" aria-label="Visual Explore. Similar images sit close together. Arrow keys move, plus and minus zoom, zero shows everything, Enter selects the image nearest the middle. Press and hold an image, then drag it to the search bar to find similar images." onKeyDown={onKeyDown} />
     {phase === 'loading' && !unprepared && !holding && <div className="map-placeholder" role="status" aria-label="Placing images">{placeholder.map((p, i) => <span key={i} style={{ left: `${p.x}%`, top: `${p.y}%`, animationDelay: `${p.delay}s` }} />)}</div>}
-    {slow && busy && <div className="map-progress"><Progress value={working ? null : sheetsLoaded} label={working?.stage || 'Loading the map'} /></div>}
+    {slow && busy && <div className="map-progress"><Progress value={working ? null : sheetsLoaded} label={working?.stage || 'Loading Visual Explore'} /></div>}
     {slow && working && <p className="map-note" role="status">{working.stage}…</p>}
     {unprepared && !preparing && (search.state === 'error'
       ? <div className="empty map-message" role="alert"><h1>{work?.label ?? 'Visual search couldn’t start'}</h1><p>{search.error}</p><button className="text-button secondary" onClick={onSetUp}>Try again</button></div>
       : <div className="empty map-message"><h1>Your folder, laid out by look</h1><p>Similar images gather together here. Setting up visual search downloads a {megabytes(model.size)} MB model once, which runs on this computer.</p><button className="text-button primary" onClick={onSetUp}>{SET_UP}</button></div>)}
     {holding && <div className="empty map-message" role="status"><h1>Preparing visual search</h1>
-      <p>{search.state === 'downloading' ? `${work!.label} · ${work!.detail}.` : search.state === 'loading' ? `${work!.label}.` : !search.total ? 'Looking for images in the folder.' : `${search.indexed.toLocaleString()} of ${search.total.toLocaleString()} images ready. The map opens when they all are.`}{left && ` ${left}.`}</p>
+      <p>{search.state === 'downloading' ? `${work!.label} · ${work!.detail}.` : search.state === 'loading' ? `${work!.label}.` : !search.total ? 'Looking for images in the folder.' : `${search.indexed.toLocaleString()} of ${search.total.toLocaleString()} images ready. Visual Explore opens when they all are.`}{left && ` ${left}.`}</p>
       <div className="map-message-progress"><Progress value={work?.value ?? null} label="Preparing visual search" /></div></div>}
-    {phase === 'error' && <div className="empty map-message" role="alert"><h1>The map didn’t load</h1><p>{error}</p><button className="text-button secondary" onClick={() => setRetry(r => r + 1)}>Retry</button></div>}
+    {phase === 'error' && <div className="empty map-message" role="alert"><h1>Visual Explore didn’t load</h1><p>{error}</p><button className="text-button secondary" onClick={() => setRetry(r => r + 1)}>Retry</button></div>}
     {empty && <div className="empty map-message"><h1>No images here</h1><p>{filtered ? 'Widen the date range, or choose another folder or file type.' : 'This folder has no images yet.'}</p>{(filtered || searching) && <button className="text-button secondary" onClick={onReset}>Clear search and filters</button>}</div>}
     {phase === 'ready' && !working && !!data?.pending && <p className="map-note" aria-live="polite">{data.pending.toLocaleString()} {data.pending === 1 ? 'image is' : 'images are'} still being prepared</p>}
-    {phase === 'ready' && !working && !data?.pending && !!data?.omitted && <p className="map-note">The map shows the newest {data.points.length.toLocaleString()} images. Filter by date or folder to see the other {data.omitted.toLocaleString()}.</p>}
-    {phase === 'ready' && !empty && <div className="map-controls" role="group" aria-label="Map view">
+    {phase === 'ready' && !working && !data?.pending && !!data?.omitted && <p className="map-note">Visual Explore shows the newest {data.points.length.toLocaleString()} images. Filter by date or folder to see the other {data.omitted.toLocaleString()}.</p>}
+    {phase === 'ready' && !empty && <div className="map-controls" role="group" aria-label="Visual Explore controls">
       <button className="icon-button" aria-label="Zoom in" title="Zoom in" onClick={() => engine.current?.zoomBy(1.7)}><Plus /></button>
       <button className="icon-button" aria-label="Zoom out" title="Zoom out" onClick={() => engine.current?.zoomBy(1 / 1.7)}><Minus /></button>
       <button className="icon-button" aria-label="Show everything" title="Show everything" onClick={() => engine.current?.fit()}><Maximize /></button>
