@@ -237,6 +237,12 @@ class Library:
         where += extra_where[1:]
         values += extra_values
         reference = params.get('similar', '')
+        named = self.people.named(query) if query and not image_bytes and not reference else []
+        if named:
+            placeholders = ','.join('?' for _ in named)
+            where.append(f'EXISTS (SELECT 1 FROM faces pf WHERE pf.image_id=i.id AND pf.ignored=0 AND pf.person IN ({placeholders}))')
+            values.extend(named)
+            query = ''
         group = params.get('group', '')
         if (reference and not IMAGE_ID.fullmatch(reference)) or (group and not IMAGE_ID.fullmatch(group)):
             raise ValueError('Choose an image from this folder.')
@@ -252,7 +258,7 @@ class Library:
             for word in query.split():
                 where.append("f.path LIKE ? ESCAPE '\\'")
                 values.append('%' + word.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%')
-            collapse = not (params.get('person') or operators.get('person'))
+            collapse = not (named or params.get('person') or operators.get('person'))
             rows = list(self.tiles(where, values, collapse=collapse))
             if not collapse:
                 rows.sort(key=lambda row: row['id'])

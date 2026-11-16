@@ -63,6 +63,31 @@ class PeopleTests(unittest.TestCase):
                 self.assertFalse(second['hasMore'])
                 self.assertNotEqual(first['items'][0]['id'], second['items'][0]['id'])
 
+    def test_saved_name_search_excludes_text_and_visual_matches(self):
+        self.seed()
+        person = self.people.status()['people'][0]['id']
+        self.people.update({'action': 'name', 'person': person, 'name': 'Family'})
+        with connect(self.library.directory) as db:
+            db.execute('UPDATE files SET path=? WHERE image_id=?', ('Family invitation.png', self.ids[2]))
+        self.library.revision += 1
+        with patch.object(self.library.semantic, 'search', side_effect=AssertionError('Person searches must use assigned faces')):
+            for query in ('Family', ' family ', 'Ｆａｍｉｌｙ'):
+                for mode in ('name', 'hybrid', 'visual'):
+                    with self.subTest(query=query, mode=mode):
+                        result = self.library.pictures({'q': query, 'mode': mode})
+                        self.assertEqual({row['id'] for row in result['items']}, set(self.ids[:2]))
+        text = self.library.pictures({'q': 'name:Family', 'mode': 'name'})
+        self.assertEqual([row['id'] for row in text['items']], [self.ids[2]])
+        self.people.update({'action': 'ignore', 'face': self.people.members(person)[0]['id']})
+        self.assertEqual(self.library.pictures({'q': 'Family', 'mode': 'hybrid'})['total'], 1)
+
+    def test_merge_requires_a_named_destination(self):
+        self.seed()
+        groups = self.people.status()['people']
+        with self.assertRaisesRegex(ValueError, 'named person'):
+            self.people.update({'action': 'merge', 'source': groups[0]['id'], 'target': groups[1]['id']})
+        self.assertEqual(len(self.people.status()['people']), 2)
+
     def test_groups_persist_and_names_filter_photos(self):
         self.seed()
         groups = self.people.status()['people']
@@ -75,7 +100,10 @@ class PeopleTests(unittest.TestCase):
     def test_manual_merge_separate_and_ignore_leave_originals_intact(self):
         self.seed()
         groups = self.people.status()['people']
+        self.people.update({'action': 'name', 'person': groups[0]['id'], 'name': 'Family'})
         result = self.people.update({'action': 'merge', 'source': groups[1]['id'], 'target': groups[0]['id']})
+        self.assertEqual(result['selectedPerson'], groups[0]['id'])
+        self.assertEqual(result['people'][0]['name'], 'Family')
         self.assertEqual(result['people'][0]['photos'], 3)
         self.assertEqual(self.library.pictures({'person': groups[0]['id']})['total'], 3)
         face = self.people.members(groups[0]['id'])[0]['id']

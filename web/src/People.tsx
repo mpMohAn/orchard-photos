@@ -18,6 +18,7 @@ export default function People({ onOpen }: { onOpen: (picture: Picture) => void 
   const [more, setMore] = useState(false);
   const [name, setName] = useState('');
   const [picker, setPicker] = useState<string | null>(null);
+  const [expandedPerson, setExpandedPerson] = useState('');
   const [newName, setNewName] = useState('');
   const [applyGroup, setApplyGroup] = useState(false);
   const pickerDialog = useRef<HTMLDialogElement>(null);
@@ -35,6 +36,7 @@ export default function People({ onOpen }: { onOpen: (picture: Picture) => void 
     return right.photos - left.photos || left.id.localeCompare(right.id);
   }), [state?.people]);
   const selected = people.find(item => item.id === person);
+  const mergeTargets = people.filter(item => item.id !== person && !!item.name.trim());
   const pickerFace = faces.find(face => face.id === picker);
   const assignedPerson = pickerFace?.person ?? person;
   const refresh = async () => {
@@ -80,6 +82,7 @@ export default function People({ onOpen }: { onOpen: (picture: Picture) => void 
         setPerson(''); setFaces([]); setPictures([]);
       } else if (resolved) {
         setPerson(resolved);
+        if (result.selectedPerson) setExpandedPerson(resolved);
         setMemberRevision(value => value + 1);
       }
       return true;
@@ -96,7 +99,7 @@ export default function People({ onOpen }: { onOpen: (picture: Picture) => void 
     const success = await update(picker === 'merge'
       ? { action: 'merge', source: person, target }
       : { action: 'assign', face: picker, person: target, name: newName, scope: applyGroup ? 'group' : 'face' });
-    if (success) { setPicker(null); if (picker === 'merge' && target) setPerson(target); }
+    if (success) setPicker(null);
   };
   const loadMore = async () => {
     const generation = photoRequest.current;
@@ -116,10 +119,10 @@ export default function People({ onOpen }: { onOpen: (picture: Picture) => void 
     {!state ? <p role="status">Loading People…</p> : !state.enabled ? <div className="people-setup"><Users /><h2>Find the people in your photos</h2><p>Group similar faces on this Mac, then add names and correct matches.</p><p className="muted">Setup downloads about 39 MB of face models once. Face processing uses up to two CPU threads and saves progress as it goes.</p><label className="check"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} /><span>Enable local face processing for this library.</span></label><button className="text-button primary" disabled={!consent || busy} onClick={() => void update({ action: 'enable', consent: true })}>Enable People</button></div>
     : selected ? <>
       <div className="people-edit"><form onSubmit={event => { event.preventDefault(); void update({ action: 'name', person, name }); }}><label htmlFor="person-name">Name</label><input id="person-name" value={name} maxLength={80} onChange={event => setName(event.target.value)} placeholder="Add a name" /><button className="text-button secondary" disabled={busy || !name.trim()}>Save name</button></form>
-        {state.people.length > 1 && <button className="text-button secondary" disabled={busy} onClick={() => setPicker('merge')}>Same person? Merge groups</button>}
+        {!!mergeTargets.length && <button className="text-button secondary" disabled={busy} onClick={() => setPicker('merge')}>Same person? Merge groups</button>}
       </div>
       <p className="muted" role="status">{selected.photos.toLocaleString()} {selected.photos === 1 ? 'photo' : 'photos'}</p>
-      <details key={`${person}:${!!selected.name}`} className="face-corrections"><summary>{selected.name ? 'Correct face matches' : 'Review detected faces'}</summary><p className="muted">{selected.name ? 'These faces are assigned to this person. Change an incorrect match or dismiss a false detection.' : 'Name this group or match it to an existing person.'}</p><div className="face-review-grid">{faces.map(face => {
+      <details key={`${person}:${!!selected.name}`} className="face-corrections" open={expandedPerson === person} onToggle={event => setExpandedPerson(event.currentTarget.open ? person : '')}><summary>{selected.name ? 'Correct face matches' : 'Review detected faces'}</summary><p className="muted">{selected.name ? 'These faces are assigned to this person. Change an incorrect match or dismiss a false detection.' : 'Name this group or match it to an existing person.'}</p><div className="face-review-grid">{faces.map(face => {
         const assignedName = selected?.name || face.name || '';
         return <div key={face.id}><img loading="lazy" decoding="async" src={`/api/people/face/${face.id}`} alt="Detected face" /><span className="face-assignment" data-named={!!assignedName || undefined}>{assignedName && <Check />}{assignedName || 'Unnamed person'}</span><button className="text-button" disabled={busy} onClick={() => setPicker(face.id)}>{assignedName ? 'Change person' : 'Name or match person'}</button><button className="text-button" disabled={busy} onClick={() => void update({ action: 'separate', face: face.id })}>Separate face</button><button className="text-button" disabled={busy} onClick={() => void update({ action: 'ignore', face: face.id })}>Not a face</button></div>;
       })}</div></details>
@@ -130,8 +133,8 @@ export default function People({ onOpen }: { onOpen: (picture: Picture) => void 
     <dialog className="person-picker" ref={pickerDialog} aria-label={picker === 'merge' ? 'Merge person groups' : 'Name or match person'} onCancel={() => setPicker(null)}>
       <header><h2>{picker === 'merge' ? 'Who is the same person?' : 'Who is this?'}</h2><button className="text-button" disabled={busy} onClick={() => setPicker(null)}>Close</button></header>
       {picker && picker !== 'merge' && <img className="assign-face" src={`/api/people/face/${picker}`} alt="Face to name or match" />}
-      <p>Choose a person by their photo and name.</p>
-      <div className="person-picker-grid">{picker && people.filter(item => picker !== 'merge' || item.id !== person).map(item => <button className="person-card" key={item.id} disabled={busy} aria-pressed={picker === 'merge' ? undefined : item.id === assignedPerson} onClick={() => void choosePerson(item.id)}><img loading="lazy" decoding="async" src={`/api/people/face/${item.cover}`} alt="" /><strong>{item.name || 'Unnamed person'}</strong>{picker !== 'merge' && item.id === assignedPerson && <span className="person-current"><Check />{item.name ? 'Current person' : 'Current group'}</span>}<span>{item.photos} {item.photos === 1 ? 'photo' : 'photos'}</span></button>)}</div>
+      <p>{picker === 'merge' ? `Add all photos in this group to the named person you choose.` : 'Choose a person by their photo and name.'}</p>
+      <div className="person-picker-grid">{picker && (picker === 'merge' ? mergeTargets : people).map(item => <button className="person-card" key={item.id} disabled={busy} aria-pressed={picker === 'merge' ? undefined : item.id === assignedPerson} onClick={() => void choosePerson(item.id)}><img loading="lazy" decoding="async" src={`/api/people/face/${item.cover}`} alt="" /><strong>{item.name || 'Unnamed person'}</strong>{picker !== 'merge' && item.id === assignedPerson && <span className="person-current"><Check />{item.name ? 'Current person' : 'Current group'}</span>}<span>{item.photos} {item.photos === 1 ? 'photo' : 'photos'}</span></button>)}</div>
       {picker && picker !== 'merge' && selected && selected.photos > 1 && <label className="check person-scope"><input type="checkbox" checked={applyGroup} onChange={event => setApplyGroup(event.target.checked)} /><span>Apply to all {selected.photos.toLocaleString()} photos in this group</span></label>}
       {picker && picker !== 'merge' && <form onSubmit={event => { event.preventDefault(); void choosePerson(); }}><label htmlFor="new-person-name">Or create a person</label><input id="new-person-name" maxLength={80} value={newName} onChange={event => setNewName(event.target.value)} placeholder="Enter a name" /><button className="text-button secondary" disabled={busy || !newName.trim()}>Save person</button></form>}
       {error && <p className="error-copy" role="alert">{error}</p>}

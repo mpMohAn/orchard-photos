@@ -263,6 +263,13 @@ class People:
             db.execute('UPDATE faces SET person=? WHERE person=?', (target, source))
             db.execute('DELETE FROM people WHERE id=?', (source,))
 
+    def named(self, value):
+        """Resolve a complete saved name using the same normalization as naming."""
+        if not 1 <= len(' '.join(value.split())) <= 80:
+            return []
+        with self.lock, connect(self.library.directory) as db:
+            return self._named_groups(db, value)[1]
+
     @staticmethod
     def _named_groups(db, value):
         if not isinstance(value, str):
@@ -320,6 +327,8 @@ class People:
                 source, target = values.get('source'), values.get('target')
                 if source == target or db.execute('SELECT count(*) FROM people WHERE id IN (?,?)', (source, target)).fetchone()[0] != 2:
                     raise ValueError('Choose two different people.')
+                if not db.execute('SELECT name FROM people WHERE id=?', (target,)).fetchone()[0].strip():
+                    raise ValueError('Choose a named person to merge into.')
                 self._merge_groups(db, source, target)
                 selected_person = target
             elif action in {'separate', 'ignore', 'assign'}:

@@ -16,9 +16,9 @@ db = sqlite3.connect(Path(sys.argv[1]) / 'library.sqlite')
 with db:
     for table in ('faces', 'people', 'faces_processed'):
         db.execute('DELETE FROM ' + table)
-    for person, name in [('a', ''), ('b', 'Zoe'), ('c', 'Amy')]:
+    for person, name in [('a', ''), ('b', 'Zoe'), ('c', 'Amy'), ('d', '')]:
         db.execute('INSERT INTO people(id,name) VALUES (?,?)', (person * 16, name))
-    for index, person in enumerate(['a', 'a', 'b', 'c']):
+    for index, person in enumerate(['a', 'a', 'b', 'c', 'd']):
         db.execute('INSERT INTO faces VALUES (?,?,?,?,?,?,0)', (str(index + 1) * 24, ids[index], person * 16, '[0,0,1,1]', bytes(512), b'crop'))
     db.executemany('INSERT INTO faces_processed VALUES (?)', [(value,) for value in ids])
     db.executemany('INSERT OR REPLACE INTO image_groups(image_id,group_id,score) VALUES (?,?,?)', [(value, ids[0], 1) for value in ids[:2]])
@@ -31,16 +31,16 @@ db.close()
   await expect(view.getByRole('button', { name: 'Enable People', exact: true })).toBeDisabled();
   await view.getByRole('checkbox').check();
   await view.getByRole('button', { name: 'Enable People', exact: true }).click();
-  await expect(page.locator('.people-grid .person-card strong')).toHaveText(['Amy', 'Zoe', 'Add a name']);
+  await expect(page.locator('.people-grid .person-card strong')).toHaveText(['Amy', 'Zoe', 'Add a name', 'Add a name']);
   await page.screenshot({ path: 'test-results/people-grid.png' });
   await view.getByRole('button', { name: 'Pause', exact: true }).click();
   await view.getByRole('button', { name: 'Resume', exact: true }).click();
-  await page.locator('.people-grid .person-card').filter({ hasText: 'Add a name' }).click();
+  await page.locator('.people-grid .person-card').filter({ hasText: 'Add a name' }).first().click();
   await page.locator('.face-corrections summary').click();
   await view.getByRole('button', { name: 'Name or match person', exact: true }).first().click();
   const picker = page.getByRole('dialog', { name: 'Name or match person', exact: true });
-  await expect(picker.locator('.person-card strong')).toHaveText(['Amy', 'Zoe', 'Unnamed person']);
-  await expect(picker.locator('.person-card').last()).toHaveAttribute('aria-pressed', 'true');
+  await expect(picker.locator('.person-card strong')).toHaveText(['Amy', 'Zoe', 'Unnamed person', 'Unnamed person']);
+  await expect(picker.locator('.person-card').nth(2)).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByLabel('Apply to all 2 photos in this group')).toBeChecked();
   const staleStatus = await (await page.request.get('/api/people')).json();
   let releasePoll!: () => void;
@@ -64,9 +64,9 @@ db.close()
   await expect(view.getByRole('heading', { level: 1 })).toHaveText('Mom');
   await expect(page.locator('.picture')).toHaveCount(2);
   await expect(view.getByText('2 photos', { exact: true })).toBeVisible();
-  await expect(page.locator('.face-corrections')).not.toHaveAttribute('open', '');
+  await expect(page.locator('.face-corrections')).toHaveAttribute('open', '');
   await expect(view.getByText('Review detected faces', { exact: true })).toHaveCount(0);
-  await view.getByText('Correct face matches', { exact: true }).click();
+  await expect(view.getByText('Correct face matches', { exact: true })).toBeVisible();
   await expect(page.locator('.face-assignment')).toHaveText(['Mom', 'Mom']);
   releasePoll();
   await deliveredPoll;
@@ -74,7 +74,7 @@ db.close()
   await page.waitForTimeout(100);
   await expect(view.getByRole('heading', { level: 1 })).toHaveText('Mom');
   await view.getByRole('button', { name: 'Change person', exact: true }).first().click();
-  await expect(picker.locator('.person-card strong')).toHaveText(['Amy', 'Mom', 'Zoe']);
+  await expect(picker.locator('.person-card strong')).toHaveText(['Amy', 'Mom', 'Zoe', 'Unnamed person']);
   await expect(picker.getByRole('button', { name: /Mom/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByText('Current person', { exact: true })).toBeVisible();
   await expect(picker.getByLabel('Apply to all 2 photos in this group')).not.toBeChecked();
@@ -89,12 +89,37 @@ db.close()
   await view.getByRole('button', { name: 'Save name', exact: true }).click();
   await expect(view.getByRole('heading', { level: 1 })).toHaveText('Mom');
   await expect(page.locator('.picture')).toHaveCount(2);
-  await page.locator('.face-corrections summary').click();
+  await expect(page.locator('.face-corrections')).toHaveAttribute('open', '');
   await expect(page.locator('.face-assignment')).toHaveText(['Mom', 'Mom']);
   await view.getByRole('button', { name: 'Same person? Merge groups', exact: true }).click();
   const merge = page.getByRole('dialog', { name: 'Merge person groups' });
   await expect(merge.locator('.person-card strong')).toHaveText(['Amy']);
-  await merge.getByRole('button', { name: 'Close', exact: true }).click();
+  await merge.getByRole('button', { name: /Amy/ }).click();
+  await expect(merge).not.toBeVisible();
+  await expect(view.getByRole('heading', { level: 1 })).toHaveText('Amy');
+  await expect(page.locator('.picture')).toHaveCount(4);
+  await expect(page.locator('.face-corrections')).toHaveAttribute('open', '');
+  await expect(page.locator('.face-assignment')).toHaveText(['Amy', 'Amy', 'Amy', 'Amy']);
+  await view.getByRole('button', { name: 'People', exact: true }).click();
+  await page.locator('.people-grid .person-card').filter({ hasText: 'Add a name' }).click();
+  await view.getByRole('button', { name: 'Same person? Merge groups', exact: true }).click();
+  await expect(merge.locator('.person-card strong')).toHaveText(['Amy']);
+  await merge.getByRole('button', { name: /Amy/ }).click();
+  await expect(view.getByRole('heading', { level: 1 })).toHaveText('Amy');
+  await expect(page.locator('.picture')).toHaveCount(5);
+  await expect(page.locator('.face-corrections')).toHaveAttribute('open', '');
+  await expect(page.locator('.face-assignment')).toHaveText(['Amy', 'Amy', 'Amy', 'Amy', 'Amy']);
+  const search = page.getByRole('textbox', { name: 'Search images', exact: true });
+  await page.getByRole('button', { name: 'Visual search', exact: true }).click();
+  await search.fill('Amy');
+  const searched = page.waitForResponse(response => response.url().includes('/api/images?') && new URL(response.url()).searchParams.get('q') === 'Amy');
+  await search.press('Enter');
+  await searched;
+  await expect(page.getByRole('heading', { name: 'Search results', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Search options', exact: true })).not.toBeVisible();
+  await expect(page.locator('.picture')).toHaveCount(5);
+  await page.getByRole('button', { name: 'People', exact: true }).click();
+  await page.locator('.people-grid .person-card').filter({ hasText: 'Amy' }).click();
   await page.screenshot({ path: 'test-results/people-detail.png' });
   for (const width of [320, 375, 414, 768]) {
     await page.setViewportSize({ width, height: 900 });
